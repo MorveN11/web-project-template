@@ -1,0 +1,15 @@
+{
+  "extends": ["../../biome.json"],
+  "files": {
+    "includes": ["!**/components/ui", "!**/.next", "!**/node_modules"]
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true,
+      "cssModules": true
+    }
+  },
+  "formatter": {
+    "formatWithErrors": true
+  }
+}

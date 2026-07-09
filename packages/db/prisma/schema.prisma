@@ -1,0 +1,50 @@
+// Prisma 7: `datasource.url` is no longer supported in schema files.
+// Connection URLs for Migrate live in `prisma.config.ts`. The runtime
+// PrismaClient is built with a driver adapter (see src/client.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// Core
+// -----------------------------------------------------------------------------
+
+model User {
+  id        String    @id @default(cuid())
+  clerkId   String    @unique
+  email     String    @unique
+  name      String?
+  role      Role      @default(MEMBER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  items Item[]
+
+  @@index([clerkId])
+  @@map("users")
+}
+
+model Item {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [clerkId], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([createdAt])
+  @@map("items")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}

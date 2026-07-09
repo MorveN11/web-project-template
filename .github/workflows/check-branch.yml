@@ -1,0 +1,21 @@
+name: check-branch
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: ['**']
+
+jobs:
+  branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate branch name
+        uses: deepakputhraya/action-branch-name@master
+        with:
+          regex: '^(feature|fix|chore|docs|feat|build|ci|test|refactor|perf|style|dependabot)\/.+$'
+          allowed_prefixes: 'feature,fix,chore,docs,feat,build,ci,test,refactor,perf,style,dependabot'
+          ignore: 'main,test'
+          min_length: 4
+          max_length: 120
+          help_text: 'Branch must match conventional prefixes: feature/, fix/, feat/, chore/, docs/, build/, ci/, test/, refactor/, perf/, style/, dependabot/'

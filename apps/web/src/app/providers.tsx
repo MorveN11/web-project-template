@@ -1,0 +1,23 @@
+'use client';
+
+import { ClerkProvider } from '@clerk/nextjs';
+import type { ReactNode } from 'react';
+import { Toaster } from 'sonner';
+import { env } from '@/lib/env/client';
+
+interface Props {
+  children: ReactNode;
+}
+
+export function Providers({ children }: Props) {
+  return (
+    <ClerkProvider
+      publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      signInUrl={env.NEXT_PUBLIC_CLERK_SIGN_IN_URL}
+      signUpUrl={env.NEXT_PUBLIC_CLERK_SIGN_UP_URL}
+    >
+      {children}
+      <Toaster richColors position="top-right" />
+    </ClerkProvider>
+  );
+}
