@@ -1,11 +1,11 @@
 {
-  "$schema": "https://json.schemastore.org/vscode-extensions",
   "recommendations": [
-    "biomejs.biome",
+    "fronterior.biome-monorepo",
     "editorconfig.editorconfig",
     "bradlc.vscode-tailwindcss",
     "ms-playwright.playwright",
-    "prisma.prisma"
+    "prisma.prisma",
+    "Anthropic.claude-code"
   ],
   "unwantedRecommendations": [
     "dbaeumer.vscode-eslint",

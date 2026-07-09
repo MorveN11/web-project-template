@@ -4,37 +4,37 @@
   "files.insertFinalNewline": true,
   "files.trimFinalNewlines": true,
 
-  "editor.defaultFormatter": "biomejs.biome",
+  "editor.defaultFormatter": "fronterior.biome-monorepo",
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
     "source.fixAll.biome": "explicit"
   },
   "[typescript]": {
-    "editor.defaultFormatter": "biomejs.biome",
+    "editor.defaultFormatter": "fronterior.biome-monorepo",
     "editor.formatOnSave": true
   },
   "[typescriptreact]": {
-    "editor.defaultFormatter": "biomejs.biome",
+    "editor.defaultFormatter": "fronterior.biome-monorepo",
     "editor.formatOnSave": true
   },
   "[javascript]": {
-    "editor.defaultFormatter": "biomejs.biome",
+    "editor.defaultFormatter": "fronterior.biome-monorepo",
     "editor.formatOnSave": true
   },
   "[javascriptreact]": {
-    "editor.defaultFormatter": "biomejs.biome",
+    "editor.defaultFormatter": "fronterior.biome-monorepo",
     "editor.formatOnSave": true
   },
   "[json]": {
-    "editor.defaultFormatter": "biomejs.biome",
+    "editor.defaultFormatter": "fronterior.biome-monorepo",
     "editor.formatOnSave": true
   },
   "[jsonc]": {
-    "editor.defaultFormatter": "biomejs.biome",
+    "editor.defaultFormatter": "fronterior.biome-monorepo",
     "editor.formatOnSave": true
   },
   "[css]": {
-    "editor.defaultFormatter": "biomejs.biome",
+    "editor.defaultFormatter": "fronterior.biome-monorepo",
     "editor.formatOnSave": true
   },
 
