@@ -15,7 +15,7 @@ export class ApiError extends Error {
   }
 }
 
-interface FetchOptions extends RequestInit {
+interface FetchOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
 }
 

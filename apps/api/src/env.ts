@@ -14,12 +14,9 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
-  DATABASE_URL: z
-    .string()
-    .url()
-    .refine((s) => s.startsWith('postgres') || s.startsWith('postgresql'), {
-      message: 'DATABASE_URL must be a postgres connection string',
-    }),
+  DATABASE_URL: z.url().refine((s) => s.startsWith('postgres') || s.startsWith('postgresql'), {
+    message: 'DATABASE_URL must be a postgres connection string',
+  }),
 
   CORS_ORIGIN: z.string().default('http://localhost:3000').transform(csv),
 
@@ -41,11 +38,9 @@ const EnvSchema = z.object({
 });
 
 const parsed = EnvSchema.safeParse(process.env);
-
-// biome-ignore lint/suspicious/noConsole: logger isn't initialized yet — env is what it depends on
-console.error('[env] invalid configuration:', parsed.error.flatten().fieldErrors);
-
 if (!parsed.success) {
+  // biome-ignore lint/suspicious/noConsole: logger isn't initialized yet — env is what it depends on
+  console.error('[env] invalid configuration:', z.flattenError(parsed.error).fieldErrors);
   process.exit(1);
 }
 

@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 export const env = createEnv({
   client: {
-    NEXT_PUBLIC_API_URL: z.string().url().default('http://localhost:4000'),
+    NEXT_PUBLIC_API_URL: z.url().default('http://localhost:4000'),
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1, 'CLERK publishable key is required'),
     NEXT_PUBLIC_CLERK_SIGN_IN_URL: z.string().default('/auth/iniciar-sesion'),
     NEXT_PUBLIC_CLERK_SIGN_UP_URL: z.string().default('/auth/registro'),

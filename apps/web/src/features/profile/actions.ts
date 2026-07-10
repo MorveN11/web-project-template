@@ -13,27 +13,32 @@ export interface CurrentSession {
   name: string | null;
 }
 
-// RSC-cached session lookup. Two overloads:
-//   no args → returns `CurrentSession | null`
-//   `{ redirectIfNotFound: true }` → returns `CurrentSession`, redirects to sign-in otherwise
-export function getCurrentSession(opts: { redirectIfNotFound: true }): Promise<CurrentSession>;
-export function getCurrentSession(opts?: { redirectIfNotFound?: false }): Promise<CurrentSession | null>;
-export async function getCurrentSession(opts?: { redirectIfNotFound?: boolean }) {
-  const fn = async (): Promise<CurrentSession | null> => {
-    const { userId } = await auth();
-    if (!userId) return null;
-    const user = await currentUser();
-    return {
-      userId,
-      email: user?.primaryEmailAddress?.emailAddress ?? null,
-      name: user?.fullName ?? user?.firstName ?? null,
-    };
+// RSC-cached session lookup. Every export from a `'use server'` file must
+// be an async function (Next 16 / Turbopack lint). We declare the
+// discriminated return type on the exported const so callers still get
+// `Promise<CurrentSession>` when opting into `redirectIfNotFound: true`.
+async function _getCurrentSession(opts?: { redirectIfNotFound?: boolean }): Promise<CurrentSession | null> {
+  const { userId } = await auth();
+  if (!userId) {
+    if (opts?.redirectIfNotFound) redirect(env.NEXT_PUBLIC_CLERK_SIGN_IN_URL);
+    return null;
+  }
+  const user = await currentUser();
+  return {
+    userId,
+    email: user?.primaryEmailAddress?.emailAddress ?? null,
+    name: user?.fullName ?? user?.firstName ?? null,
   };
-  return cache(fn)().then((session) => {
-    if (!session && opts?.redirectIfNotFound) redirect(env.NEXT_PUBLIC_CLERK_SIGN_IN_URL);
-    return session;
-  });
 }
+
+// Type assertion: runtime guarantee is that `redirectIfNotFound: true` never
+// observes a `null` (it redirects first); TS can't prove that from the
+// signature alone. Intersection keeps both call shapes without re-declaring
+// non-async overloads (Next's `'use server'` lint forbids those).
+export const getCurrentSession = cache(_getCurrentSession) as ((opts: {
+  redirectIfNotFound: true;
+}) => Promise<CurrentSession>) &
+  ((opts?: { redirectIfNotFound?: false }) => Promise<CurrentSession | null>);
 
 export async function getCurrentToken(): Promise<string | null> {
   const { getToken } = await auth();

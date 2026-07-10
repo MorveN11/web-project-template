@@ -10,20 +10,13 @@ import type { Result } from './result';
 
 type SuccessStatus = ContentfulStatusCode | 204;
 
-export function handleResult<T>(
-  result: Result<T>,
-  c: Context,
-  opts?: { successStatus?: SuccessStatus },
-): Response {
+export function handleResult<T>(result: Result<T>, c: Context, opts?: { successStatus?: SuccessStatus }): Response {
   if (result.success) {
     if (opts?.successStatus === 204) return c.body(null, 204 as ContentfulStatusCode);
     return c.json(result.data, (opts?.successStatus ?? 200) as ContentfulStatusCode);
   }
   const { error } = result;
-  return c.json(
-    { error: { code: error.code, message: error.message } },
-    error.status as ContentfulStatusCode,
-  );
+  return c.json({ error: { code: error.code, message: error.message } }, error.status as ContentfulStatusCode);
 }
 
 export function handleVoid(result: Result<void>, c: Context): Response {

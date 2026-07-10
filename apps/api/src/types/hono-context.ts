@@ -15,4 +15,5 @@ declare module 'hono' {
 // Allow this file to be imported as a side-effect module that registers the
 // augmentation. Importing it once from index.ts is enough to expand the
 // `Context` shape for the whole api package.
+// biome-ignore lint/complexity/noUselessEmptyExport: This file is only for side-effect, so we don't need to export anything.
 export {};

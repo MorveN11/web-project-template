@@ -3,11 +3,18 @@
 // imports types only (see src/types.ts + src/index.ts re-exports).
 
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+// The `log` array pins the second generic on PrismaClient (U). That generic
+// is what `$on<V extends U>` narrows on, and `attachPrismaLogging` needs it
+// to typecheck the 'query' / 'warn' / 'error' event handlers. Pinning it
+// here once, on the export type, makes the API consumers type-safe without
+// each one re-stating the log options.
+type AppPrisma = PrismaClient<Prisma.PrismaClientOptions, 'query' | 'warn' | 'error'>;
 
-function createClient(): PrismaClient {
+const globalForPrisma = globalThis as unknown as { prisma?: AppPrisma };
+
+function createClient(): AppPrisma {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error('DATABASE_URL is required to instantiate the Prisma client');
@@ -15,11 +22,11 @@ function createClient(): PrismaClient {
   const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({
     adapter,
-    log: ['warn', 'error'],
+    log: ['query', 'warn', 'error'],
   });
 }
 
-export const database = globalForPrisma.prisma ?? createClient();
+export const database: AppPrisma = globalForPrisma.prisma ?? createClient();
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = database;
