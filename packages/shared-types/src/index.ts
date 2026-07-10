@@ -36,3 +36,14 @@ export const apiErrorSchema = z
   .openapi('ApiError');
 
 export type ApiErrorBody = z.infer<typeof apiErrorSchema>;
+
+// Two-role system: ADMIN (full access, can create users via the api)
+// and CLIENT (default for self-signup). Mirrors `apps/web/src/features/auth/types.ts`
+// and the Prisma `Role` enum — keep all three in lock-step.
+export const UserRole = {
+  ADMIN: 'ADMIN',
+  CLIENT: 'CLIENT',
+} as const;
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+export const userRoleSchema = z.enum([UserRole.ADMIN, UserRole.CLIENT]).openapi('UserRole');

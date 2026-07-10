@@ -19,7 +19,7 @@ model User {
   clerkId   String    @unique
   email     String    @unique
   name      String?
-  role      Role      @default(MEMBER)
+  role      Role      @default(CLIENT)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -44,7 +44,10 @@ model Item {
   @@map("items")
 }
 
+// Two roles: ADMIN (full access, can create users via the api) and
+// CLIENT (default for self-signup via Clerk). Mirrors the value the
+// web app stores under Clerk `publicMetadata.role`.
 enum Role {
   ADMIN
-  MEMBER
+  CLIENT
 }

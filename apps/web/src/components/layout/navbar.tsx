@@ -1,10 +1,14 @@
 import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
-import { auth } from '@clerk/nextjs/server';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { getCurrentSession } from '@/features/auth/actions';
 
 export async function Navbar() {
-  const { userId } = await auth();
+  // `redirectIfNotFound: false` keeps signed-out users on the page;
+  // the `<Show when="signed-out">` block renders the sign-in/up buttons.
+  // The call still runs every render so the nav stays dynamic and
+  // doesn't serve a cached stale state.
+  const session = await getCurrentSession();
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
       <nav className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -25,11 +29,9 @@ export async function Navbar() {
               <Button size="sm">Sign up</Button>
             </SignUpButton>
           </Show>
-          {/* Keep the server-side `auth()` call referenced so this
-              component stays in the dynamic rendering tree; otherwise
-              the nav would be cached and signed-out users would see
-              stale auth UI on first paint. */}
-          {userId ? null : null}
+          {/* Touch the session so the call doesn't get tree-shaken by
+              Turbopack — keeps the nav in the dynamic rendering tree. */}
+          {session ? null : null}
         </div>
       </nav>
     </header>

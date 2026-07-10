@@ -5,7 +5,8 @@
 
 import { database } from '@app/db';
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import { logger } from '../logger';
+import { logger } from '@/logger';
+import { publicSecurity } from '@/openapi/security';
 
 const healthResponseSchema = z
   .object({
@@ -20,7 +21,7 @@ const healthResponseSchema = z
 const healthRoute = createRoute({
   method: 'get',
   path: '/',
-  security: [],
+  security: publicSecurity,
   responses: {
     200: {
       content: { 'application/json': { schema: healthResponseSchema } },

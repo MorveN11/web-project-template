@@ -1,9 +1,9 @@
 // Item service. Owns business rules + Result<T>. Calls the repository,
 // never the database directly.
 
-import type { ClerkAuthContext } from '../auth/clerk';
-import { err, errConflict, errForbidden, errInternal, errNotFound, ok, type Result } from '../core/result';
-import { logger } from '../logger';
+import type { ClerkAuthContext } from '@/auth/clerk';
+import { err, errConflict, errForbidden, errInternal, errNotFound, ok, type Result } from '@/core/result';
+import { logger } from '@/logger';
 import { type ItemDto, toItemDto } from './mappers';
 import type { ItemRepository } from './repository';
 import type { CreateItemBody, ListItemsQuery, UpdateItemBody } from './schemas';

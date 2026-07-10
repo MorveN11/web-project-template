@@ -7,11 +7,15 @@ import { serve } from '@hono/node-server';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
 import { cors } from 'hono/cors';
+import { attachUserLogger } from './auth/clerk';
 import { attachPrismaLogging } from './db/prisma-logging';
 import { env } from './env';
-import { healthRoutes } from './health/routes';
-import { itemRoutes } from './items';
+import { healthRoutes } from './features/health';
+import { itemRoutes } from './features/items';
+import { userRoutes } from './features/users';
+import { handleClerkWebhook } from './features/webhooks';
 import { logger, withRequest } from './logger';
+import { bearerSecurity } from './openapi/security';
 // Side-effect import: registers Hono context-variable augmentation
 // (`log`, `request_id`). Required for typed `c.set` / `c.get` calls below.
 import './types/hono-context';
@@ -40,6 +44,12 @@ app.use('*', async (c, next) => {
   c.set('log', withRequest(id));
   await next();
 });
+
+// attachUserLogger: enriches the request-scoped logger with `user_id`
+// when an auth context is present (silent skip on public routes).
+// Mounted at the app root so every feature router inherits it without
+// per-feature `.use(...)` duplication.
+app.use('*', attachUserLogger);
 
 // Custom access log. Replaces hono/logger so we own the format and
 // emit via pino (no second logger).
@@ -71,6 +81,11 @@ app.use(
 
 // Public endpoints. No auth required.
 app.route('/health', healthRoutes);
+// Clerk webhook receiver — signature verification is the auth; no
+// `requireAuth` / `requireRole` middleware in front of this. Mounted
+// before the business routers so the raw-body signature check runs
+// before any OpenAPIHono route resolution.
+app.post('/webhooks/clerk', (c) => handleClerkWebhook(c.req.raw));
 app.get('/', (c) =>
   c.json({
     service: 'web-project-template api',
@@ -88,7 +103,7 @@ if (env.NODE_ENV !== 'production') {
   app.doc('/openapi.json', {
     openapi: '3.1.0',
     info: { title: 'web-project-template api', version: '0.0.0' },
-    security: [{ bearerAuth: [] }],
+    security: bearerSecurity,
   });
 
   app.get(
@@ -105,6 +120,7 @@ if (env.NODE_ENV !== 'production') {
 // own auth gate (see apps/api/src/items/routes.ts). Adding /v2 later
 // means a per-router flag, not a global prefix migration.
 app.route('/items', itemRoutes);
+app.route('/users', userRoutes);
 
 app.notFound((c) => c.json({ error: { code: 'not_found', message: 'no route' } }, 404));
 

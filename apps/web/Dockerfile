@@ -12,9 +12,11 @@ RUN corepack enable pnpm
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
-COPY packages/db/package.json ./packages/db/package.json
+# Copy the shared-types SOURCE (not just package.json) so pnpm can
+# symlink it into node_modules and Turbopack can resolve it during
+# the next build. Filtered install keeps the deps stage slim.
+COPY packages/shared-types ./packages/shared-types
 COPY apps/web/package.json ./apps/web/package.json
-COPY packages/shared-types/package.json ./packages/shared-types/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm fetch --frozen-lockfile=false && \
     pnpm install --filter @app/web... --offline --frozen-lockfile --ignore-scripts

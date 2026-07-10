@@ -24,6 +24,12 @@ const EnvSchema = z.object({
   CLERK_PUBLISHABLE_KEY: z.string().min(1).default(''),
   CLERK_AUTHORIZED_PARTIES: z.string().default('http://localhost:3000').transform(csv),
 
+  // Clerk webhook signing secret. Configure in the Clerk dashboard
+  // (Webhooks → endpoint → Signing Secret) and paste here. The
+  // `/webhooks/clerk` route uses `verifyWebhook` to authenticate
+  // inbound events with this value.
+  CLERK_WEBHOOK_SIGNING_SECRET: z.string().min(1).default('whsec_placeholder_set_me_in_dashboard'),
+
   SEED_ENABLED: z
     .string()
     .optional()
