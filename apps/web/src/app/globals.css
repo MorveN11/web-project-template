@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@clerk/ui/themes/shadcn.css";
 
 /* Dark mode is class-based via next-themes. */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -23,12 +24,40 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
 
   --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
   --font-serif: "Source Serif 4", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   --radius: 0.625rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Override Tailwind's built-in `.container` to the project's layout
+     convention: centered, single max-width at the 7xl breakpoint, with
+     responsive gutters. Result: `<div className="container">` matches
+     the old `.custom-container` markup exactly, with zero indirection.
+     Variables read by Tailwind v4's container utility:
+       --container-center        → margin-inline: auto
+       --container-{size}        → max-width at that breakpoint
+       --container-padding       → base inline padding
+       --container-{bp}-padding  → inline padding at that breakpoint */
+  --container-center: true;
+  --container-7xl: 80rem;
+  --container-padding: 1rem;
+  --container-sm-padding: 1.5rem;
+  --container-lg-padding: 2rem;
+
+  --tracking-normal: 0.025em;
+  --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
+  --tracking-tight: calc(var(--tracking-normal) - 0.025em);
+  --tracking-wide: calc(var(--tracking-normal) + 0.025em);
+  --tracking-wider: calc(var(--tracking-normal) + 0.05em);
+  --tracking-widest: calc(var(--tracking-normal) + 0.1em);
 }
 
 :root {
@@ -49,6 +78,21 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+
+  /* Customizable brand link colors. Override per-theme or per-page. */
+  --link: oklch(0.45 0.15 280);
+  --link-hover: oklch(0.38 0.16 285);
+
+  /* Soft elevation scale — every Tailwind `shadow-*` utility uses
+     these vars so shadows stay consistent across components. */
+  --shadow-2xs: 0px 5px 25px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0px 5px 25px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm: 0px 5px 25px 0px hsl(0 0% 0% / 0.1), 0px 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow: 0px 5px 25px 0px hsl(0 0% 0% / 0.1), 0px 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md: 0px 5px 25px 0px hsl(0 0% 0% / 0.1), 0px 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg: 0px 5px 25px 0px hsl(0 0% 0% / 0.1), 0px 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl: 0px 5px 25px 0px hsl(0 0% 0% / 0.1), 0px 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-2xl: 0px 5px 25px 0px hsl(0 0% 0% / 0.25);
 }
 
 .dark {
@@ -69,6 +113,8 @@
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 18%);
   --ring: oklch(0.556 0 0);
+  --link: oklch(0.7 0.12 280);
+  --link-hover: oklch(0.78 0.14 285);
 }
 
 html,
@@ -76,8 +122,142 @@ body {
   height: 100%;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+@layer base {
+  /* Soft defaults for every element. Letter-spacing comes from
+     --tracking-normal so a single override cascades everywhere. */
+  * {
+    letter-spacing: var(--tracking-normal);
+    border-color: var(--border);
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Headings — serif + tight tracking + balanced wrap. Override
+     `--font-serif` or apply `font-sans` directly on a heading to
+     opt out per-component. */
+  h1 {
+    @apply font-serif text-2xl font-semibold tracking-tight text-balance md:text-3xl;
+  }
+
+  h2 {
+    @apply font-serif text-xl font-semibold tracking-tight text-balance md:text-2xl;
+  }
+
+  h3 {
+    @apply font-serif text-lg font-semibold tracking-tight text-balance md:text-xl;
+  }
+
+  h4 {
+    @apply font-serif text-base font-semibold tracking-tight text-balance md:text-lg;
+  }
+
+  /* Scrollbar — slim, theme-aware thumb. Hides track on macOS-style
+     overlays but keeps the thumb visible on Windows/Linux. */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--muted-foreground);
+    border-radius: var(--radius-md);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--foreground);
+  }
+
+  /* Number inputs lose their spinner arrows by default — opt in with
+     `appearance: auto` when you need them. */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Reusable utility classes. Add to this block when a pattern shows up in
+   3+ components — promotes the common case to a one-word class while still
+   letting power users reach for raw Tailwind utilities.
+   --------------------------------------------------------------------------- */
+
+@layer utilities {
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slide-up {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes shimmer {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes pulse-ring {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 var(--ring);
+    }
+    50% {
+      box-shadow: 0 0 0 8px transparent;
+    }
+  }
+}
+
+@utility muted {
+  @apply text-muted-foreground;
+}
+
+@utility link {
+  @apply text-link underline-offset-4 transition-colors duration-200 hover:text-link-hover hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring;
+}
+
+@utility animate-fade-in {
+  animation: fade-in 0.5s ease-out;
+}
+
+@utility animate-slide-up {
+  animation: slide-up 0.7s ease-out;
+}
+
+@utility animate-shimmer {
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@utility animate-pulse-ring {
+  animation: pulse-ring 2s ease-in-out infinite;
 }

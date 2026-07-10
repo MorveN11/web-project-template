@@ -10,9 +10,9 @@
   },
   "scripts": {
     "compose": "docker compose --env-file .env up -d",
-    "compose:down": "docker compose --env-file .env down",
+    "down": "docker compose --env-file .env down",
     "compose:prod": "docker compose -f docker-compose.prod.yml --env-file .env up -d --build",
-    "compose:prod:down": "docker compose -f docker-compose.prod.yml --env-file .env down",
+    "down:prod": "docker compose -f docker-compose.prod.yml --env-file .env down",
     "dev:api": "pnpm --filter @app/api dev",
     "dev:web": "pnpm --filter @app/web dev",
     "dev": "pnpm --parallel dev:api dev:web",

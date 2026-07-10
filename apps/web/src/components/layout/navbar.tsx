@@ -1,4 +1,4 @@
-import { SignInButton, UserButton } from '@clerk/nextjs';
+import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import { auth } from '@clerk/nextjs/server';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -12,15 +12,24 @@ export async function Navbar() {
           Web Project Template
         </Link>
         <div className="flex items-center gap-3">
-          {userId ? (
+          <Show when="signed-in">
             <UserButton />
-          ) : (
+          </Show>
+          <Show when="signed-out">
             <SignInButton>
               <Button variant="outline" size="sm">
                 Sign in
               </Button>
             </SignInButton>
-          )}
+            <SignUpButton>
+              <Button size="sm">Sign up</Button>
+            </SignUpButton>
+          </Show>
+          {/* Keep the server-side `auth()` call referenced so this
+              component stays in the dynamic rendering tree; otherwise
+              the nav would be cached and signed-out users would see
+              stale auth UI on first paint. */}
+          {userId ? null : null}
         </div>
       </nav>
     </header>

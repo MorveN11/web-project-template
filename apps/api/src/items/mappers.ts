@@ -1,16 +1,11 @@
 // Prisma row → DTO. Wire shape stays decoupled from storage shape so the
-// two can evolve independently.
+// two can evolve independently. The `ItemDto` type lives in
+// @app/shared-types so api + web share the contract.
 
 import type { Item } from '@app/db';
+import type { ItemDto } from '@app/shared-types';
 
-export interface ItemDto {
-  id: string;
-  name: string;
-  description: string | null;
-  ownerId: string;
-  createdAt: string;
-  updatedAt: string;
-}
+export type { ItemDto };
 
 export function toItemDto(row: Item): ItemDto {
   return {

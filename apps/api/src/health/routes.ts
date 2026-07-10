@@ -4,10 +4,32 @@
 // degraded flag.
 
 import { database } from '@app/db';
-import { Hono } from 'hono';
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import { logger } from '../logger';
 
-export const healthRoutes = new Hono().get('/', async (c) => {
+const healthResponseSchema = z
+  .object({
+    status: z.enum(['ok', 'degraded']),
+    service: z.literal('api'),
+    uptime_seconds: z.number().int(),
+    database: z.enum(['ok', 'down']),
+    timestamp: z.string(),
+  })
+  .openapi('HealthResponse');
+
+const healthRoute = createRoute({
+  method: 'get',
+  path: '/',
+  security: [],
+  responses: {
+    200: {
+      content: { 'application/json': { schema: healthResponseSchema } },
+      description: 'Service is reachable; DB status reported separately.',
+    },
+  },
+});
+
+export const healthRoutes = new OpenAPIHono().openapi(healthRoute, async (c) => {
   let db: 'ok' | 'down' = 'ok';
   try {
     await database.$queryRaw`SELECT 1`;

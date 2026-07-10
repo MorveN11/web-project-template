@@ -5,7 +5,11 @@
 
 import { clerkMiddleware } from '@clerk/nextjs/server';
 
-const PUBLIC_PREFIXES = ['/auth', '/api/webhooks'];
+// Public prefixes — `/sign-in` and `/sign-up` MUST live here, otherwise
+// `auth.protect()` fires on Clerk's own auth pages and the browser
+// loops on `?redirect_url=…` (Clerk re-encodes the current URL on
+// every redirect, producing the runaway nesting seen in bug reports).
+const PUBLIC_PREFIXES = ['/auth', '/sign-in', '/sign-up', '/api/webhooks'];
 const PUBLIC_EXACT = new Set(['/', '/health']);
 
 function isPublic(pathname: string): boolean {
@@ -23,5 +27,6 @@ export const config = {
   matcher: [
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
     '/(api|trpc)(.*)',
+    '/__clerk/:path*',
   ],
 };

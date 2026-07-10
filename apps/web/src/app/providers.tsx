@@ -1,6 +1,7 @@
 'use client';
 
 import { ClerkProvider } from '@clerk/nextjs';
+import { shadcn } from '@clerk/ui/themes';
 import type { ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import { env } from '@/lib/env/client';
@@ -15,6 +16,7 @@ export function Providers({ children }: Props) {
       publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       signInUrl={env.NEXT_PUBLIC_CLERK_SIGN_IN_URL}
       signUpUrl={env.NEXT_PUBLIC_CLERK_SIGN_UP_URL}
+      appearance={{ theme: shadcn }}
     >
       {children}
       <Toaster richColors position="top-right" />

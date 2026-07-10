@@ -5,9 +5,12 @@ packages:
 allowBuilds:
   '@clerk/shared': true
   '@prisma/engines': true
+  bufferutil: set this to true or false
+  core-js: set this to true or false
   esbuild: true
   prisma: true
   sharp: true
+  utf-8-validate: set this to true or false
 
 minimumReleaseAgeExclude:
   - '@clerk/backend@3.11.1'

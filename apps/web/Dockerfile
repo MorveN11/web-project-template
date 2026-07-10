@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1.7
 # Next.js standalone build. Two stages: deps+build, runtime runs server.js.
 
-ARG NODE_VERSION=20-alpine
+ARG NODE_VERSION=lts-alpine
 
 FROM node:${NODE_VERSION} AS base
 WORKDIR /app
 ENV CI=true \
     PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH
-RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+RUN corepack enable pnpm
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
@@ -17,7 +17,7 @@ COPY apps/web/package.json ./apps/web/package.json
 COPY packages/shared-types/package.json ./packages/shared-types/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm fetch --frozen-lockfile=false && \
-    pnpm install --filter @app/web... --offline --frozen-lockfile
+    pnpm install --filter @app/web... --offline --frozen-lockfile --ignore-scripts
 
 FROM base AS build
 ARG NEXT_PUBLIC_API_URL
@@ -33,6 +33,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     CLERK_SECRET_KEY=$CLERK_SECRET_KEY
 
 COPY --from=deps /app /app
+COPY tsconfig.base.json ./tsconfig.base.json
 COPY apps/web ./apps/web
 WORKDIR /app/apps/web
 RUN pnpm run build
@@ -40,12 +41,12 @@ RUN pnpm run build
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
-    PORT=3000 \
+    PORT=8080 \
     HOSTNAME=0.0.0.0
 RUN addgroup -g 1001 -S web && adduser -S web -u 1001 -G web
 COPY --from=build --chown=web:web /app/apps/web/.next/standalone ./
 COPY --from=build --chown=web:web /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build --chown=web:web /app/apps/web/public ./apps/web/public
 USER web
-EXPOSE 3000
+EXPOSE 8080
 CMD ["node", "apps/web/server.js"]

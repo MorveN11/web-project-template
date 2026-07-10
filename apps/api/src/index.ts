@@ -4,10 +4,9 @@
 
 import { randomUUID } from 'node:crypto';
 import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { Scalar } from '@scalar/hono-api-reference';
 import { cors } from 'hono/cors';
-import type { Logger } from 'pino';
-import { getAuth, requireAuth } from './auth/clerk';
 import { attachPrismaLogging } from './db/prisma-logging';
 import { env } from './env';
 import { healthRoutes } from './health/routes';
@@ -19,7 +18,18 @@ import './types/hono-context';
 
 attachPrismaLogging();
 
-const app = new Hono();
+const app = new OpenAPIHono();
+
+// Register the bearer security scheme before any middleware runs.
+// The registry is independent of route registration order — the
+// component shows up in the generated doc regardless of when routes
+// mount. Doing this before `app.use(...)` keeps the type narrowed to
+// `OpenAPIHono`, so `app.openAPIRegistry` resolves without a cast.
+app.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
+  type: 'http',
+  scheme: 'bearer',
+  bearerFormat: 'JWT',
+});
 
 // request_id: every log line downstream carries this id for tracing.
 app.use('*', async (c, next) => {
@@ -65,27 +75,36 @@ app.get('/', (c) =>
   c.json({
     service: 'web-project-template api',
     version: '0.0.0',
-    docs: '/health',
+    docs: env.NODE_ENV === 'production' ? null : '/docs',
+    openapi: env.NODE_ENV === 'production' ? null : '/openapi.json',
   }),
 );
 
-// Auth gate for everything below. Inject logger context per route so
-// downstream handlers can attach user_id to logs without re-parsing
-// the token.
-app.use('/v1/*', requireAuth);
-app.use('/v1/*', async (c, next) => {
-  try {
-    const auth = getAuth(c);
-    const log = c.get('log') as Logger;
-    c.set('log', log.child({ user_id: auth.userId } as Record<string, unknown>) as Logger);
-  } catch {
-    /* requireAuth already threw — let onError handle it */
-  }
-  await next();
-});
+// OpenAPI 3.1 doc + Scalar UI. Bearer scheme so the Try-It-Out box
+// accepts a Clerk JWT and forwards it as `Authorization: Bearer …`.
+// Gated on NODE_ENV so prod builds expose neither endpoint — keeps
+// the surface area lean and avoids leaking internal route shapes.
+if (env.NODE_ENV !== 'production') {
+  app.doc('/openapi.json', {
+    openapi: '3.1.0',
+    info: { title: 'web-project-template api', version: '0.0.0' },
+    security: [{ bearerAuth: [] }],
+  });
 
-// Versioned, authenticated business endpoints.
-app.route('/v1/items', itemRoutes);
+  app.get(
+    '/docs',
+    Scalar({
+      url: '/openapi.json',
+      authentication: { preferredSecurityScheme: 'bearerAuth' },
+      pageTitle: 'API Docs',
+    }),
+  );
+}
+
+// Business endpoints. No version prefix — each feature router owns its
+// own auth gate (see apps/api/src/items/routes.ts). Adding /v2 later
+// means a per-router flag, not a global prefix migration.
+app.route('/items', itemRoutes);
 
 app.notFound((c) => c.json({ error: { code: 'not_found', message: 'no route' } }, 404));
 
