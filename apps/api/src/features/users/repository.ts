@@ -7,14 +7,18 @@ import type { UserRole } from '@app/shared-types';
 export interface CreateLocalUserInput {
   clerkId: string;
   email: string;
-  name: string | null;
+  firstName: string;
+  lastName: string;
+  imageUrl: string | null;
   role: UserRole;
 }
 
 export interface UpsertLocalUserInput {
   clerkId: string;
   email: string;
-  name: string | null;
+  firstName: string;
+  lastName: string;
+  imageUrl: string | null;
   role: UserRole;
   /** Set to mark the row soft-deleted; omit (or pass `undefined`) to clear. */
   deletedAt?: Date;
@@ -36,7 +40,9 @@ export class UserRepository {
       data: {
         clerkId: input.clerkId,
         email: input.email,
-        name: input.name,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        imageUrl: input.imageUrl,
         role: input.role,
       },
     });
@@ -46,6 +52,10 @@ export class UserRepository {
   // this for both `user.updated` and `user.deleted` (soft-delete via
   // `deletedAt`). Play-by-play of the schema:
   //   - clerkId is unique → upsert picks the right row.
+  //   - firstName / lastName are required (Clerk enforces at signup);
+  //     webhook handlers fall back to the previous values if Clerk
+  //     ever sends a malformed payload.
+  //   - imageUrl is optional — omit to keep current, set to update.
   //   - deletedAt is optional → omit to clear, set to mark gone.
   upsert(input: UpsertLocalUserInput): Promise<User> {
     return this.db.user.upsert({
@@ -53,12 +63,16 @@ export class UserRepository {
       create: {
         clerkId: input.clerkId,
         email: input.email,
-        name: input.name,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        imageUrl: input.imageUrl,
         role: input.role,
       },
       update: {
         email: input.email,
-        name: input.name,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        imageUrl: input.imageUrl,
         role: input.role,
         ...(input.deletedAt !== undefined && { deletedAt: input.deletedAt }),
       },

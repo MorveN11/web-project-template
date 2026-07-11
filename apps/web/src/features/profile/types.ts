@@ -9,7 +9,9 @@ export interface Profile {
   id: string;
   clerkId: string;
   email: string;
-  name: string | null;
+  firstName: string;
+  lastName: string;
+  imageUrl: string | null;
   role: UserRole;
   createdAt: string;
   updatedAt: string;

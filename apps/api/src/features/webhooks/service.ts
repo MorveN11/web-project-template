@@ -25,14 +25,14 @@ export type WebhookOutcome = 'updated' | 'deleted' | 'noop';
 export class UserWebhookService {
   constructor(private readonly users: UserRepository) {}
 
-  // `user.updated` — profile fields changed (email, name, avatar).
-  // Frontend `POST /users/me` only runs on authenticated renders, so
-  // it doesn't catch every profile edit; the webhook covers the gap
-  // for background changes (Clerk dashboard edits, OAuth provider
-  // updates, etc.). Role field is intentionally NOT updated here —
-  // role changes go through the admin POST /users endpoint so they
-  // leave a paper trail (BAPI call with service-role credentials,
-  // not the webhook).
+  // `user.updated` — profile fields changed (email, firstName,
+  // lastName, imageUrl, avatar). Frontend `POST /users/me` only runs
+  // on authenticated renders, so it doesn't catch every profile edit;
+  // the webhook covers the gap for background changes (Clerk dashboard
+  // edits, OAuth provider updates, avatar swaps, etc.). Role field is
+  // intentionally NOT updated here — role changes go through the
+  // admin POST /users endpoint so they leave a paper trail (BAPI call
+  // with service-role credentials, not the webhook).
   async handleUpdated(user: UserJSON): Promise<WebhookOutcome> {
     const existing = await this.users.findByClerkId(user.id);
     if (!existing) {
@@ -43,16 +43,26 @@ export class UserWebhookService {
       return 'noop';
     }
 
-    const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim() || null;
+    // Clerk requires firstName / lastName at signup. Fall back to
+    // existing values when the webhook payload omits them (shouldn't
+    // happen, but keeps the row valid even on weird payloads).
+    const firstName = user.first_name ?? existing.firstName;
+    const lastName = user.last_name ?? existing.lastName;
     const email = user.email_addresses[0]?.email_address ?? existing.email;
+    const imageUrl = user.image_url ?? existing.imageUrl ?? null;
 
     await this.users.upsert({
       clerkId: user.id,
       email,
-      name,
+      firstName,
+      lastName,
+      imageUrl,
       role: existing.role as UserRole,
     });
-    logger.info({ clerkId: user.id }, 'webhook: user updated');
+    logger.info(
+      { clerkId: user.id, imageChanged: imageUrl !== existing.imageUrl },
+      'webhook: user updated',
+    );
     return 'updated';
   }
 
@@ -66,7 +76,9 @@ export class UserWebhookService {
     await this.users.upsert({
       clerkId: userId,
       email: existing.email,
-      name: existing.name,
+      firstName: existing.firstName,
+      lastName: existing.lastName,
+      imageUrl: existing.imageUrl,
       role: existing.role as UserRole,
       deletedAt: new Date(),
     });

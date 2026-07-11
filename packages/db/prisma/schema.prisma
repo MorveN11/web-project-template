@@ -18,7 +18,14 @@ model User {
   id        String    @id @default(cuid())
   clerkId   String    @unique
   email     String    @unique
-  name      String?
+  // firstName / lastName are required — Clerk enforces them at
+  // signup (Google sign-in ships them by default), and the api's
+  // createUserBodySchema validates them. imageUrl is optional;
+  // Clerk sends it on every user.updated webhook when the user
+  // changes their avatar.
+  firstName String
+  lastName  String
+  imageUrl  String?
   role      Role      @default(CLIENT)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

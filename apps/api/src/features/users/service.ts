@@ -49,7 +49,9 @@ export class UserService {
       const row = await this.users.create({
         clerkId: clerkUser.id,
         email: body.email,
-        name: [body.firstName, body.lastName].filter(Boolean).join(' ').trim() || null,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        imageUrl: body.imageUrl ?? null,
         role: body.role,
       });
 
@@ -90,7 +92,11 @@ export class UserService {
         return err(errInternal(new Error('clerk user has no primary email')));
       }
 
-      const name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ').trim() || null;
+      // Clerk requires firstName / lastName at signup (Google sign-in
+      // ships them by default), so we always have both here.
+      const firstName = clerkUser.firstName ?? '';
+      const lastName = clerkUser.lastName ?? '';
+      const imageUrl = clerkUser.imageUrl ?? null;
 
       // Step 1 — find or create the local row. We need `row.id`
       // before we can stamp Clerk with the right `userId`.
@@ -99,13 +105,17 @@ export class UserService {
         ? await this.users.upsert({
             clerkId: auth.userId,
             email,
-            name,
+            firstName,
+            lastName,
+            imageUrl,
             role: existing.role as UserRole, // preserve — admin-only writes
           })
         : await this.users.create({
             clerkId: auth.userId,
             email,
-            name,
+            firstName,
+            lastName,
+            imageUrl,
             role: UserRole.CLIENT,
           });
 

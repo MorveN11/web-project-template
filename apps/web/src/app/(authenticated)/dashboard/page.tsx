@@ -29,13 +29,36 @@ export default async function DashboardPage() {
         Signed in as <span className="font-mono">{profile.email}</span> · role{' '}
         <span className="font-mono">{profile.role}</span>
       </p>
+      <div className="mt-6 flex items-center gap-4">
+        {profile.imageUrl ? (
+          // biome-ignore lint/performance/noImgElement: Clerk CDN serves optimized avatars; next/image requires remotePatterns entry we don't need here.
+          <img
+            src={profile.imageUrl}
+            alt={`${profile.firstName} ${profile.lastName}`}
+            className="size-16 rounded-full border bg-muted object-cover"
+          />
+        ) : (
+          <div className="flex size-16 items-center justify-center rounded-full border bg-muted text-sm font-semibold">
+            {profile.firstName[0]}
+            {profile.lastName[0]}
+          </div>
+        )}
+        <div>
+          <div className="text-lg font-semibold">
+            {profile.firstName} {profile.lastName}
+          </div>
+          <div className="text-sm text-muted-foreground">{profile.email}</div>
+        </div>
+      </div>
       <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <dt className="text-muted-foreground">Local id</dt>
         <dd className="font-mono">{profile.id}</dd>
         <dt className="text-muted-foreground">Clerk id</dt>
         <dd className="font-mono">{profile.clerkId}</dd>
-        <dt className="text-muted-foreground">Name</dt>
-        <dd>{profile.name ?? '—'}</dd>
+        <dt className="text-muted-foreground">First name</dt>
+        <dd>{profile.firstName}</dd>
+        <dt className="text-muted-foreground">Last name</dt>
+        <dd>{profile.lastName}</dd>
         <dt className="text-muted-foreground">Created</dt>
         <dd className="font-mono">{profile.createdAt}</dd>
       </dl>
