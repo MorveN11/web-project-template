@@ -9,6 +9,7 @@ import { Scalar } from '@scalar/hono-api-reference';
 import { cors } from 'hono/cors';
 import { attachUserLogger } from './auth/clerk';
 import { attachPrismaLogging } from './db/prisma-logging';
+import { devRoutes } from './dev';
 import { env } from './env';
 import { healthRoutes } from './features/health';
 import { itemRoutes } from './features/items';
@@ -112,8 +113,18 @@ if (env.NODE_ENV !== 'production') {
       url: '/openapi.json',
       authentication: { preferredSecurityScheme: 'bearerAuth' },
       pageTitle: 'API Docs',
+      // Persist the Bearer token across page reloads — devs usually
+      // hit Try-It-Out many times before the JWT expires.
+      persistAuth: true,
     }),
   );
+
+  // Dev-only token-minting endpoint. NEVER mounted in production
+  // (the outer if-gate above is the only barrier — the handler also
+  // re-checks NODE_ENV as defense in depth). Callers mint a Clerk
+  // session JWT by email for testing without copy/pasting from the
+  // web app's cookie panel.
+  app.route('/dev', devRoutes);
 }
 
 // Business endpoints. No version prefix — each feature router owns its

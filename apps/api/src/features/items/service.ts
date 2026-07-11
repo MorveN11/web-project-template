@@ -1,6 +1,7 @@
 // Item service. Owns business rules + Result<T>. Calls the repository,
 // never the database directly.
 
+import type { PaginationResponse } from '@app/shared-types';
 import type { ClerkAuthContext } from '@/auth/clerk';
 import { err, errConflict, errForbidden, errInternal, errNotFound, ok, type Result } from '@/core/result';
 import { logger } from '@/logger';
@@ -11,13 +12,29 @@ import type { CreateItemBody, ListItemsQuery, UpdateItemBody } from './schemas';
 export class ItemService {
   constructor(private readonly items: ItemRepository) {}
 
-  async list(q: ListItemsQuery): Promise<Result<{ items: ItemDto[]; total: number }>> {
+  async list(q: ListItemsQuery): Promise<Result<PaginationResponse<ItemDto>>> {
     try {
       const [rows, total] = await Promise.all([
         this.items.list({ limit: q.limit, offset: q.offset }),
         this.items.count(),
       ]);
-      return ok({ items: rows.map(toItemDto), total });
+
+      // Translate the wire `limit/offset` query to the friendlier
+      // `page/pageSize` envelope. Floor (not ceil) on the page number —
+      // `offset=0` is page 1, not page 0.
+      const page = Math.floor(q.offset / q.limit) + 1;
+      const pageSize = q.limit;
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+      return ok({
+        items: rows.map(toItemDto),
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNextPage: q.offset + q.limit < total,
+        hasPreviousPage: q.offset > 0,
+      });
     } catch (cause) {
       logger.error({ cause, q }, 'item.list failed');
       return err(errInternal(cause));

@@ -18,8 +18,8 @@
 // root in `src/index.ts` — feature routers no longer declare it.
 
 import { database } from '@app/db';
-import { itemDtoSchema, UserRole } from '@app/shared-types';
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
+import { itemDtoSchema, paginationResponseSchema, UserRole } from '@app/shared-types';
+import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
 import { getAuth, requireAuth } from '@/auth/clerk';
 import { requireRole } from '@/auth/role';
 import { handleResult, handleVoid } from '@/core/handle';
@@ -32,12 +32,7 @@ import { ItemService } from './service';
 // Wire repository → service → router. Composition root for the feature.
 const service = new ItemService(new ItemRepository(database));
 
-const itemListResponseSchema = z
-  .object({
-    items: z.array(itemDtoSchema),
-    total: z.number().int(),
-  })
-  .openapi('ItemListResponse');
+const itemListResponseSchema = paginationResponseSchema(itemDtoSchema, 'Item');
 
 // ----- Public reads --------------------------------------------------------
 

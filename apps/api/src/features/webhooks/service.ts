@@ -15,10 +15,10 @@
 // Idempotency: every handler is a `findUnique({ clerkId })` followed
 // by an `upsert` / `delete`. Replays are safe.
 
-import type { UserJSON } from '@clerk/backend';
 import type { UserRole } from '@app/shared-types';
-import { logger } from '@/logger';
+import type { UserJSON } from '@clerk/backend';
 import type { UserRepository } from '@/features/users/repository';
+import { logger } from '@/logger';
 
 export type WebhookOutcome = 'updated' | 'deleted' | 'noop';
 

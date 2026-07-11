@@ -1,49 +1,25 @@
-// Shared zod schemas + inferred types between apps/api and apps/web.
-// Keep this package dependency-free beyond `zod`.
-
-export { z } from 'zod';
-
-// Re-export the schemas your features actually need. The items example
-// below mirrors apps/api/src/items/schemas.ts so the web client can
-// validate payloads before crossing the network.
+// Barrel for `@app/shared-types`. Source split into two layers:
 //
-// `.openapi('Name')` registers the schema in zod-to-openapi's component
-// registry so `@hono/zod-openapi` routes can reference it by name in
-// their response bodies. Importing `@hono/zod-openapi` here also
-// augments zod with the `.openapi()` method at the type level.
-import { z } from '@hono/zod-openapi';
+//   cross-cutting/   concerns used by ≥ 2 features (error envelope,
+//                    pagination, etc.)
+//   features/       per-domain DTOs (item, user, ...)
+//
+// Each leaf file owns BOTH the zod schema and the inferred TS type
+// for its concern, plus a top-of-file comment explaining the wire
+// shape and which feature consumes it.
+//
+// External callers (`apps/api`, `apps/web`) keep importing from the
+// package root (`@app/shared-types`) — this barrel re-exports
+// everything so the public surface never changes.
+//
+// Public surface (stable):
+//   apiErrorSchema, ApiErrorBody
+//   itemDtoSchema, ItemDto
+//   paginationResponseSchema(), PaginationResponse<T>
+//   UserRole, userRoleSchema, UserRoleType
 
-export const itemDtoSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string().nullable(),
-    ownerId: z.string(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  })
-  .openapi('ItemDto');
+export { apiErrorSchema, type ApiErrorBody } from './cross-cutting/api-error';
+export { paginationResponseSchema, type PaginationResponse } from './cross-cutting/pagination';
 
-export type ItemDto = z.infer<typeof itemDtoSchema>;
-
-export const apiErrorSchema = z
-  .object({
-    error: z.object({
-      code: z.string(),
-      message: z.string(),
-    }),
-  })
-  .openapi('ApiError');
-
-export type ApiErrorBody = z.infer<typeof apiErrorSchema>;
-
-// Two-role system: ADMIN (full access, can create users via the api)
-// and CLIENT (default for self-signup). Mirrors `apps/web/src/features/auth/types.ts`
-// and the Prisma `Role` enum — keep all three in lock-step.
-export const UserRole = {
-  ADMIN: 'ADMIN',
-  CLIENT: 'CLIENT',
-} as const;
-export type UserRole = (typeof UserRole)[keyof typeof UserRole];
-
-export const userRoleSchema = z.enum([UserRole.ADMIN, UserRole.CLIENT]).openapi('UserRole');
+export { itemDtoSchema, type ItemDto } from './features/item';
+export { UserRole, userRoleSchema, type UserRole as UserRoleType } from './features/user';

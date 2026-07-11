@@ -15,7 +15,7 @@
     "migrate:reset": "prisma migrate reset",
     "format": "prisma format",
     "studio": "prisma studio",
-    "seed": "tsx prisma/seed.ts",
+    "seed": "prisma db seed",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

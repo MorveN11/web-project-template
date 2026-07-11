@@ -9,13 +9,10 @@ import Link from 'next/link';
 export default function RoleErrorPage() {
   return (
     <main className="container flex min-h-screen flex-col items-center justify-center gap-4 py-12 text-center">
-      <h1 className="text-3xl font-semibold tracking-tight">
-        We couldn&rsquo;t find your role
-      </h1>
+      <h1 className="text-3xl font-semibold tracking-tight">We couldn&rsquo;t find your role</h1>
       <p className="text-muted-foreground max-w-prose">
-        Your account exists, but no role was assigned to it yet. This usually means
-        there&rsquo;s a setup hiccup on our side &mdash; reach out to support and
-        we&rsquo;ll get you sorted as quickly as possible.
+        Your account exists, but no role was assigned to it yet. This usually means there&rsquo;s a setup hiccup on our
+        side &mdash; reach out to support and we&rsquo;ll get you sorted as quickly as possible.
       </p>
       <div className="flex gap-3">
         <Link
@@ -24,10 +21,7 @@ export default function RoleErrorPage() {
         >
           Contact support
         </Link>
-        <Link
-          href="/auth/iniciar-sesion"
-          className="rounded-md border px-4 py-2 text-sm font-medium"
-        >
+        <Link href="/auth/iniciar-sesion" className="rounded-md border px-4 py-2 text-sm font-medium">
           Try signing in again
         </Link>
       </div>

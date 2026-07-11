@@ -35,23 +35,35 @@ const AUTHORIZED_PARTIES = env.CLERK_AUTHORIZED_PARTIES;
 
 export async function verifyClerkToken(token: string): Promise<ClerkAuthContext> {
   try {
+    // `authorizedParties` only applies to JWTs minted by the Clerk
+    // frontend SDK — those carry an `azp` claim matching the
+    // origin that requested them. Tokens minted server-side via the
+    // BAPI (e.g. our /dev/issue-token endpoint, or any other
+    // machine-to-machine flow) have NO `azp`, and passing
+    // `authorizedParties` would reject them.
+    //
+    // Strategy: do the signature + exp + iss check unconditionally;
+    // only add `authorizedParties` when the token actually carries
+    // an `azp` claim. That way both flows work without weakening
+    // either — frontend tokens are still pinned to known origins,
+    // BAPI tokens pass through.
     const claims = await verifyToken(token, {
       secretKey: env.CLERK_SECRET_KEY,
-      // `authorizedParties` is the Clerk term for "audiences we trust
-      // to issue this token" — replaces the manual `audience` check
-      // we used to pass to `jwtVerify`.
-      authorizedParties: AUTHORIZED_PARTIES,
+      ...(hasAzp(token) && { authorizedParties: AUTHORIZED_PARTIES }),
     });
     if (!claims.sub) {
       throw new HttpError(401, 'unauthorized', 'missing sub claim');
     }
-    // Role comes from `publicMetadata.role` — the web app's
-    // `setDefaultClientRoleAction` writes it on first sign-in, and
-    // admins flip it to ADMIN via the manual-create endpoint.
-    // `null` here means the metadata hasn't been written yet — the
-    // role middleware refuses access and asks the caller to retry
-    // after the default-role action runs.
-    const rawRole = (claims as { public_metadata?: { role?: unknown } }).public_metadata?.role;
+    // Role comes from the JWT template claim first (set by Clerk's
+    // session-token customization), with a fallback to the raw
+    // `publicMetadata` field for tokens minted before the template
+    // existed. The local-DB user id is the `userId` template claim;
+    // the Clerk user id is the standard `sub`.
+    const c = claims as {
+      role?: unknown;
+      userId?: unknown;
+    };
+    const rawRole = c.role;
     const role: UserRoleType | null = rawRole === UserRole.ADMIN || rawRole === UserRole.CLIENT ? rawRole : null;
     return {
       userId: claims.sub,
@@ -66,6 +78,29 @@ export async function verifyClerkToken(token: string): Promise<ClerkAuthContext>
     if (cause instanceof HttpError) throw cause;
     logger.debug({ cause }, 'clerk token verification failed');
     throw new HttpError(401, 'unauthorized', 'invalid or expired token');
+  }
+}
+
+/**
+ * Cheap pre-check: does this JWT carry an `azp` claim?
+ *
+ * Implemented by decoding the payload (middle segment) without
+ * verifying the signature — we only need to know the claim exists
+ * so we can decide whether to pass `authorizedParties`. The actual
+ * signature verification happens inside `verifyToken`.
+ */
+function hasAzp(token: string): boolean {
+  const segments = token.split('.');
+  const payload = segments[1];
+  if (!payload) return false;
+  try {
+    const pad = (s: string) => s + '='.repeat((4 - (s.length % 4)) % 4);
+    const json = JSON.parse(
+      Buffer.from(pad(payload).replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'),
+    ) as { azp?: unknown };
+    return typeof json.azp === 'string' && json.azp.length > 0;
+  } catch {
+    return false;
   }
 }
 

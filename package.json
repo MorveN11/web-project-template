@@ -15,7 +15,7 @@
     "down:prod": "docker compose -f docker-compose.prod.yml --env-file .env down",
     "dev:api": "pnpm --filter @app/api dev",
     "dev:web": "pnpm --filter @app/web dev",
-    "dev": "pnpm --parallel dev:api dev:web",
+    "dev": "pnpm --parallel --filter @app/api --filter @app/web run dev",
     "build": "pnpm --recursive --workspace-concurrency=4 run build",
     "lint": "pnpm --recursive run lint",
     "lint:fix": "pnpm --recursive run lint:fix",
@@ -25,6 +25,7 @@
     "db:generate": "pnpm --filter @app/db generate",
     "db:migrate:dev": "pnpm --filter @app/db migrate:dev",
     "db:migrate:deploy": "pnpm --filter @app/db migrate:deploy",
+    "db:migrate:reset": "pnpm --filter @app/db migrate:reset",
     "db:studio": "pnpm --filter @app/db studio",
     "db:seed": "pnpm --filter @app/db seed"
   }

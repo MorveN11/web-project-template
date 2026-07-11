@@ -24,8 +24,8 @@
 
 import { database } from '@app/db';
 import { verifyWebhook, type WebhookEvent } from '@clerk/backend/webhooks';
-import { logger } from '@/logger';
 import { UserRepository } from '@/features/users/repository';
+import { logger } from '@/logger';
 import { UserWebhookService } from './service';
 
 const service = new UserWebhookService(new UserRepository(database));
