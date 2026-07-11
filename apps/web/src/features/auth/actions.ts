@@ -31,23 +31,9 @@ import { cache } from 'react';
 import { env } from '@/lib/env/client';
 import { env as serverEnv } from '@/lib/env/server';
 import { logger } from '@/lib/logger';
+import { isNextControlError } from '@/lib/next-control-error';
 import { REDIRECT_URL, ROLE_ERROR_URL } from './constants';
 import type { UserSession } from './types';
-
-// Next.js' `redirect()` and `notFound()` short-circuit renders by
-// throwing an internal error whose `digest` starts with `NEXT_REDIRECT`
-// or `NEXT_NOT_FOUND`. We must re-throw those — otherwise the catch
-// below would swallow the navigation signal and turn it into a silent
-// `null`, breaking `redirectIfNotFound: true`'s contract.
-function isNextControlError(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    'digest' in err &&
-    typeof (err as { digest: unknown }).digest === 'string' &&
-    ((err as { digest: string }).digest.startsWith('NEXT_REDIRECT') ||
-      (err as { digest: string }).digest.startsWith('NEXT_NOT_FOUND'))
-  );
-}
 
 // ----- getCurrentSession ---------------------------------------------------
 
