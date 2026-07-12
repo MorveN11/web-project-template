@@ -154,8 +154,6 @@ Returns `Result<T>` (typed `ok | err`). Throw-free — the wrapper catches netwo
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✓ | — | client env |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | — | `/auth/iniciar-sesion` | client env |
 | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | — | `/auth/registro` | client env |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | — | `/` | client env |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | — | `/` | client env |
 | `CLERK_SECRET_KEY` | ✓ | — | server env |
 | `NODE_ENV` | — | `development` | server env |
 

@@ -22,7 +22,5 @@ export default defineConfig({
   // `datasource.url` is only required by migrate/db push/studio. We
   // pass it when present and let prisma error on its own when missing
   // for those commands.
-  ...(process.env.DATABASE_URL
-    ? { datasource: { url: process.env.DATABASE_URL } }
-    : {}),
+  ...(process.env.DATABASE_URL ? { datasource: { url: process.env.DATABASE_URL } } : {}),
 });
