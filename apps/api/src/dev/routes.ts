@@ -86,10 +86,7 @@ export const devRoutes = new OpenAPIHono().openapi(issueTokenRoute, async (c) =>
     const clerkUser = list.data[0];
 
     if (!clerkUser) {
-      return c.json(
-        { error: { code: 'not_found', message: `no Clerk user with email ${email}` } },
-        404,
-      );
+      return c.json({ error: { code: 'not_found', message: `no Clerk user with email ${email}` } }, 404);
     }
 
     // Sanity check — confirm the local mirror exists. If not, the
@@ -109,19 +106,13 @@ export const devRoutes = new OpenAPIHono().openapi(issueTokenRoute, async (c) =>
     const { jwt } = await clerk.sessions.getToken(session.id, undefined, durationSeconds);
 
     const expiresAt = Math.floor(Date.now() / 1000) + durationSeconds;
-    logger.info(
-      { email, clerkId: clerkUser.id, sessionId: session.id, expiresAt },
-      'dev: issued session token',
-    );
+    logger.info({ email, clerkId: clerkUser.id, sessionId: session.id, expiresAt }, 'dev: issued session token');
 
     // Return the JWT as raw text/plain — devs `$(curl ...)` it
     // straight into Authorization headers without parsing JSON.
     return c.text(jwt, 200, { 'Content-Type': 'text/plain; charset=utf-8' });
   } catch (cause) {
     logger.error({ cause, email }, 'dev: issue-token failed');
-    return c.json(
-      { error: { code: 'internal_error', message: 'failed to mint token' } },
-      500,
-    );
+    return c.json({ error: { code: 'internal_error', message: 'failed to mint token' } }, 500);
   }
 });

@@ -132,11 +132,7 @@ export class ApiClient {
 
     if (!res.ok) {
       const problem = await res.json().catch(() => null);
-      throw new ApiError(
-        res.status,
-        problem?.error?.code ?? res.statusText,
-        problem?.error?.message,
-      );
+      throw new ApiError(res.status, problem?.error?.code ?? res.statusText, problem?.error?.message);
     }
 
     if (res.status === 204) return undefined as T;

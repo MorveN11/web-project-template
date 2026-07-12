@@ -1,5 +1,5 @@
-import { getCurrentSession } from '@/features/auth';
 import Image from 'next/image';
+import { getCurrentSession } from '@/features/auth';
 
 export default async function DashboardPage() {
   // The parent (authenticated) layout already gated us via
