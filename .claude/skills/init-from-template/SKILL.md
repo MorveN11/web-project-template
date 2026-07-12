@@ -63,13 +63,15 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 
 3. **Rename the workspace.** Replace `@app/<name>` and `web-project-template` with the new project's name across every `package.json` in `apps/*` and `packages/*`. Update `README.md` and `AGENTS.md` too. Rename the docker compose `name:`, image defaults (`web-project-template-api:local`), and POSTGRES_DB default (`web_project_template`).
 
+3a. **Apply the PRD (if provided).** See "Using the PRD" above. Update `package.json` description, `README.md` intro, add a "Project context" section to `AGENTS.md`, refresh `apps/web/src/app/page.tsx` landing copy, and (only if the PRD names a concrete first entity) scaffold placeholder feature files. Do not generate business logic — the scaffold stays boilerplate.
+
 4. **Regenerate env examples.** Replace `replace_me` placeholders with the user's Clerk keys (if provided). Never write real secrets into `.env.example` files — those are committed. Do not add `NEXT_PUBLIC_API_URL` anywhere — the compose file hardcodes the in-container URL (`http://api:8080`) for Docker and `apps/web/src/lib/env/client.ts` provides the dev default.
 
 5. **Re-init git + branches.**
    - `cd <target>`
    - `git init`
    - Create the three protected branches: `git checkout -b dev`, `git checkout -b test`, `git checkout -b main`, then `git checkout dev` (default working branch).
-   - Initial commit on `dev`: `git add -A && git commit -m "chore: bootstrap from web-project-template" --no-verify`.
+   - Initial commit on `dev`: `git add -A && git commit -m "chore: bootstrap from web-project-template" --no-verify` (or `chore: bootstrap from web-project-template with <project name>` if a PRD was applied).
    - Mirror to `test` and `main` so all three share the same initial SHA: `git push origin dev test main` after configuring the remote.
    - Set remote: `git remote add origin git@github.com:<user>/<repo>.git`
    - Tell the user the cycle: features fork from `dev`, PR into `test`, periodic release `test → main`, sync `main → dev`. The detailed flow lives in `CONTRIBUTING.md` § 2.
@@ -89,6 +91,7 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 
 8. **Report.** Tell the user:
    - Tree copied and branches set.
+   - If a PRD was applied: which files were PRD-aware (package.json description, README intro, AGENTS context, page.tsx landing, optional first-feature scaffold) and which placeholder TODOs remain.
    - `pnpm compose` for dev (uses `docker-compose.yml`, postgres only).
    - `pnpm compose:prod` for prod-like local validation (full stack via Dockerfiles).
    - Which GitHub secrets to add before merging to `test`/`main`.
