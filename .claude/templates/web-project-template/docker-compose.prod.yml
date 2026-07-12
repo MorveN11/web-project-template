@@ -1,0 +1,111 @@
+# Prod / prod-test compose — full stack built from local Dockerfiles or
+# pre-built images (pass `API_IMAGE=ghcr.io/<org>/<repo>/api:<tag>` and
+# `WEB_IMAGE=...` to pull from a registry instead of building).
+#
+# Use this to validate the closest-to-production model locally before
+# pushing to the CI/release workflow.
+#
+# Usage:
+#   pnpm compose:prod            # docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+#   pnpm compose:prod:down       # teardown
+
+name: web-project-template-prod
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-web_project_template}
+    expose:
+      - "5432"
+    volumes:
+      - ./.containers/postgres-prod:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-web_project_template}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - web-project-template-net
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: ${API_IMAGE:-web-project-template-api:local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 8080
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_QUERIES: ${LOG_QUERIES:-false}
+      # Force the in-container hostname to the postgres service. Without
+      # this, a `DATABASE_URL=localhost:5440` set in the host .env wins
+      # the substitution and the api can't reach the db (container
+      # localhost != host localhost).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-web_project_template}?schema=public
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY:-}
+      CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES}
+      # CORS_ORIGIN must match the URL the browser hits — host-side.
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:${WEB_HOST_PORT:-3000}}
+      SEED_ENABLED: ${SEED_ENABLED:-false}
+    ports:
+      - "${API_HOST_PORT:-4000}:8080"
+    # Hit the in-container /health endpoint so the web service can wait
+    # for the api to actually be ready (not just started).
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://localhost:8080/health >/dev/null 2>&1
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - web-project-template-net
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # In-container URL the bundled JS uses to call the api. ALWAYS
+        # the compose service name + port, NEVER the host-side
+        # NEXT_PUBLIC_API_URL — that's what the browser sees, not
+        # what the web container uses. Setting this to localhost
+        # makes every api request fail at runtime (syncSelf 404 loop).
+        NEXT_PUBLIC_API_URL: http://api:8080
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/iniciar-sesion}
+        NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/auth/registro}
+        NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/}
+        NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL:-/}
+        CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+    image: ${WEB_IMAGE:-web-project-template-web:local}
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/iniciar-sesion}
+      NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/auth/registro}
+      NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/}
+      NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL:-/}
+    ports:
+      - "${WEB_HOST_PORT:-3000}:8080"
+    networks:
+      - web-project-template-net
+
+networks:
+  web-project-template-net:
+    name: web-project-template-prod
+    driver: bridge

@@ -16,12 +16,14 @@ web-project-template/
 │   └── shared-types/        zod schemas shared between api and web
 ├── docker-compose.yml      postgres only — host runs api/web
 ├── docker-compose.prod.yml  full stack — closest-to-prod validation
+├── biome.json              SINGLE lint + format config (root)
+├── tsconfig.base.json      shared TS config (every package extends it)
 └── .github/
     ├── workflows/           check-branch, check-pull-request, ci, release.{prod,test}
     └── CODEOWNERS           auto-requested reviewers per path
 ```
 
-`pnpm-workspace.yaml` declares workspaces. **Root has zero devDependencies** — every tool (Biome, vitest, prisma, tsx) lives in the package that uses it.
+`pnpm-workspace.yaml` declares workspaces. **Root holds every tool that 2+ packages share** (biome, typescript, vitest, tsx, @types/node, zod, @hono/zod-openapi). Per-package `package.json` only lists what that package uniquely needs. One install at `/app/node_modules` covers every workspace.
 
 ---
 
@@ -59,6 +61,8 @@ HTTP request
 └────────────────────────────────────┘
 ```
 
+The canonical reference is `apps/api/src/features/users/`. Same file layout in every other feature.
+
 ### Rules
 
 1. **Routes never touch the database.** They parse, hand off, map the result.
@@ -85,14 +89,14 @@ export const ok = <T>(data: T): Result<T> => ({ success: true, data });
 export const err = (error: AppError): Result<never> => ({ success: false, error });
 
 // Convenience factories match HttpError semantics:
-errNotFound('item 42 not found')     // { code: 'not_found', status: 404, ... }
-errForbidden('not your item')          // { code: 'forbidden', status: 403, ... }
+errNotFound('user not found')         // { code: 'not_found', status: 404, ... }
+errForbidden('not your resource')     // { code: 'forbidden', status: 403, ... }
 ```
 
 `handleResult` (`apps/api/src/core/handle.ts`) translates a `Result<T>` into a Hono response:
 
 ```ts
-handleResult(await service.list(query), c)
+handleResult(await service.syncSelf(auth), c)
 // success  → c.json(data, 200)
 // failure  → c.json({ error: { code, message } }, error.status)
 ```
@@ -115,7 +119,7 @@ Browser
 ┌────────────────────────────────────┐
 │ Server Action ('use server')       │  ← RSC-glue: auth + service call
 │ features/<x>/actions.ts            │     returns SafeActionResult<T>
-│  getCurrentToken()                 │
+│  getCurrentSession()               │
 │  safeAction(() => getMyProfile())  │
 └──────────────┬─────────────────────┘
                │
@@ -123,7 +127,8 @@ Browser
 ┌────────────────────────────────────┐
 │ Service layer                      │  ← thin fetch wrapper
 │ features/<x>/services/<x>.service  │
-│  apiClient.get('/v1/me')           │
+│  apiClient.get('/users/me')        │
+│           .withAuth(token)         │
 └──────────────┬─────────────────────┘
                │ HTTP + bearer token
                ▼
@@ -141,7 +146,7 @@ Browser
 
 ### Dev-only logger
 
-`apps/web/src/lib/logger.ts` is a no-op in production (`process.env.NODE_ENV` inlined at build). Use it for debugging during development; production observability comes from the api's structured logs.
+`apps/web/src/lib/logger.ts` is a no-op in production (`process.env.NODE_ENV` inlined at build). Use it for debugging during development; production observability comes from the api's structured logs. `ApiClient.execute()` automatically logs every request (`api:request` / `api:response` / `api:error`) through this same dev-only logger — useful for debugging sync loops and 401/403 cascades during development.
 
 ---
 
@@ -155,22 +160,25 @@ Prisma 7 removed `datasource.url` from `schema.prisma`. Connection URL lives in 
 // prisma.config.ts
 import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
-import { PrismaPg } from '@prisma/adapter-pg';
+
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL is required (set it in .env or the shell)');
+}
 
 export default defineConfig({
   schema: './prisma/schema.prisma',
   migrations: {
-    adapter: () => Promise.resolve(new PrismaPg({
-      connectionString: process.env.DATABASE_URL!,
-    })),
+    seed: 'tsx prisma/seed.ts',
+  },
+  datasource: {
+    url: process.env.DATABASE_URL,
   },
 });
 ```
 
-The runtime `PrismaClient` uses the same adapter:
+The runtime `PrismaClient` is built with the driver adapter in `packages/db/src/client.ts`:
 
 ```ts
-// packages/db/src/client.ts
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
@@ -192,12 +200,12 @@ The runtime is a single `PrismaClient` shared across the api. Web only consumes 
 
 ### Migrations
 
-- Dev: `pnpm db:migrate:dev` — creates + applies.
+- Dev: `pnpm db:migrate:dev --name <name>` — creates + applies.
 - Prod: `apps/api/docker-entrypoint.sh` runs `prisma migrate deploy` on container boot. **Migrations are never run in CI** (CI has no postgres service).
 
 ---
 
-## 5. Auth (`@clerk/nextjs` v7+)
+## 5. Auth (`@clerk/backend` + `@clerk/nextjs`)
 
 ```
                   Bearer JWT
@@ -207,19 +215,19 @@ The runtime is a single `PrismaClient` shared across the api. Web only consumes 
                        ┌──────────────────┐
                        │ auth/clerk.ts    │
                        │ verifyClerkToken │
-                       │   jose.jwtVerify │
-                       │   JWKS from Clerk │
+                       │   verifyToken()  │
+                       │   from @clerk/   │
+                       │     backend      │
+                       │   JWKS cached     │
                        └────────┬─────────┘
-                                │ ctx = { userId, sessionId, claims }
+                                │ ctx = { userId, sessionId, role, claims }
                                 ▼
                        service.ts has ClerkAuthContext
 ```
 
-The api verifies JWTs with `@clerk/nextjs` removed from earlier; we use `jose` directly to avoid coupling.
+The api uses `@clerk/backend`'s `verifyToken()` — it resolves the issuer/audience from `secretKey` automatically, fetches JWKS, and keeps verification primitives in sync with the Clerk ecosystem. `authorizedParties` is only enforced when the JWT carries an `azp` claim (frontend-issued tokens); BAPI-issued tokens skip the check.
 
-Frontend uses `@clerk/nextjs` server functions (`auth()`, `currentUser()`) for RSC auth checks, and `SignInButton` / `UserButton` for client UI.
-
-`proxy.ts` (Next.js middleware) uses `clerkMiddleware` to gate every non-public route via `auth.protect()`.
+Frontend uses `@clerk/nextjs` server functions (`auth()`, `currentUser()`) for RSC auth checks, and `SignInButton` / `UserButton` for client UI. `proxy.ts` (Next.js middleware) uses `clerkMiddleware` to gate every non-public route via `auth.protect()`.
 
 ---
 
@@ -236,19 +244,16 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().url().refine(/* postgres */),
   CLERK_SECRET_KEY: z.string().min(1),
-  CORS_ORIGIN: z.string().default('http://localhost:3000').transform(csv),
+  CORS_ORIGIN: z.string().default('http://localhost:3000'),
   // ...
 });
 
 const parsed = EnvSchema.safeParse(process.env);
-if (!parsed.success) {
-  process.stderr.write(/* reason */);
-  process.exit(1);
-}
+if (!parsed.success) process.exit(1);
 export const env = parsed.data;
 ```
 
-`tsx watch --env-file=.env src/index.ts` loads `.env` first, then env.ts validates.
+`tsx watch --env-file=.env src/index.ts` loads `.env` first, then `env.ts` validates.
 
 ### Web (`apps/web/src/lib/env/{client,server}.ts`)
 
@@ -258,6 +263,10 @@ export const env = parsed.data;
 - Build fails if either side leaks across the boundary.
 
 `process.env.NODE_ENV` is read in `lib/env/server.ts` to expose `isDev`.
+
+### Docker — the `NEXT_PUBLIC_API_URL` rule
+
+`NEXT_PUBLIC_*` is **inlined at build time**. Inside Docker, the web bundle must reference the **in-container** api URL (`http://api:8080`), not the host-side `NEXT_PUBLIC_API_URL`. The compose file hardcodes the build ARG to avoid the silent failure where the web container can't reach `http://localhost:4000`. Details in the README "Docker" section.
 
 ---
 
@@ -279,11 +288,7 @@ app.use('*', async (c, next) => {
   await next();
 });
 
-app.use('v1/*', async (c, next) => {
-  const log = c.get('log') as Logger;
-  c.set('log', log.child({ user_id: auth.userId }));   // add user_id
-  await next();
-});
+app.use('*', attachUserLogger);               // adds user_id when auth present
 ```
 
 The Hono `ContextVariableMap` augmentation (`apps/api/src/types/hono-context.ts`) makes `c.set/c.get('log', …)` type-safe.
@@ -294,7 +299,7 @@ The Hono `ContextVariableMap` augmentation (`apps/api/src/types/hono-context.ts`
 
 ### Frontend (`apps/web/src/lib/logger.ts`)
 
-Dev-only noop:
+Dev-only no-op:
 
 ```ts
 const isDev = process.env.NODE_ENV !== 'production';
@@ -304,33 +309,44 @@ export const logger = {
 };
 ```
 
+`ApiClient.execute()` is the single chokepoint for every api call — it logs request start, response status, and errors with no token, no body (PII safe). Useful for debugging sync loops in dev.
+
 ---
 
 ## 8. CI/CD flow
 
 ```
-PR opened (any branch)        PR merged to test         PR merged to main
-       │                              │                       │
-       ▼                              ▼                       ▼
- check-branch                    release.test.yml      release.prod.yml
- check-pull-request             semantic-release       semantic-release
- ci (lint/test/build)            build+push image       build+push image
-                                       │                       │
-                                       ▼                       ▼
-                                Dokploy redeploy        Dokploy redeploy
-                                (test env)              (prod env)
+feature/* (PR→test)         test → main PR        main → dev sync
+       │                          │                      │
+       ▼                          ▼                      ▼
+ check-branch              release-test.yml       (no-op merge)
+ check-pull-request        semantic-release
+ ci (lint/check/typecheck/ build+push image
+      test/build)                │
+                                ▼
+                         Dokploy redeploy (test env)
+
+   test push             main push           main → dev sync
+        │                    │                    │
+        ▼                    ▼                    ▼
+ release-test.yml     release-prod.yml      dev catches up;
+ (prerelease deploy)  (stable release +     cycle restarts
+                       Dokploy prod)
 ```
 
 Migrations run inside the api container at boot (`apps/api/docker-entrypoint.sh`). CI never runs them.
 
-See `CONTRIBUTING.md` § 4 for the developer-side flow.
+See `CONTRIBUTING.md` § 2 for the developer-side flow.
 
 ---
 
 ## 9. Files to read first
 
-- `apps/api/src/items/{routes,service,repository}.ts` — the canonical feature shape.
+- `apps/api/src/features/users/{routes,service,repository}.ts` — the canonical feature shape (the only domain shipped with the template).
 - `apps/api/src/core/{result,handle}.ts` — Result pattern.
-- `apps/web/src/features/profile/actions.ts` — server-action pattern.
+- `apps/api/src/auth/{clerk,role}.ts` — server-side auth gate.
+- `apps/web/src/features/auth/{actions,role-context}.tsx` — server-action + client-side role context pattern.
+- `apps/web/src/features/auth/services/auth.service.ts` — fluent api client wrapper for user endpoints.
 - `packages/db/prisma.config.ts` — Prisma 7 adapter setup.
+- `biome.json` — single source of truth for lint + format.
 - `.github/workflows/release.prod.yml` — release pipeline.

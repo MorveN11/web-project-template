@@ -1,0 +1,35 @@
+{
+  "name": "@app/api",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --enable-source-maps dist/index.js",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome check --write .",
+    "check": "biome check .",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --passWithNoTests",
+    "db:generate": "pnpm --filter @app/db generate",
+    "db:migrate:dev": "pnpm --filter @app/db migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @app/db migrate:deploy",
+    "db:studio": "pnpm --filter @app/db studio",
+    "seed": "pnpm --filter @app/db seed",
+    "postinstall": "pnpm --filter @app/db generate"
+  },
+  "dependencies": {
+    "@app/db": "workspace:*",
+    "@app/shared-types": "workspace:*",
+    "@clerk/backend": "^3.11.4",
+    "@hono/node-server": "^2.0.8",
+    "@scalar/hono-api-reference": "^0.11.9",
+    "hono": "^4.12.29",
+    "pino": "^10.3.1"
+  },
+  "devDependencies": {
+    "pino-pretty": "^13.1.3"
+  }
+}

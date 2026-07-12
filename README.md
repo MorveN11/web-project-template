@@ -1,6 +1,6 @@
 # web-project-template
 
-Minimal web project template. pnpm workspaces, two deployable apps + two shared packages. Start here for any new web project — extend with features as the project grows.
+Minimal web project template. pnpm workspaces, two deployable apps + two shared packages. **The only domain shipped is `User`** — fork and replace it with your first real feature. Everything around it (auth, db, CI/CD, docker, lint, formatting) is the boilerplate you keep.
 
 ---
 
@@ -12,7 +12,6 @@ pnpm install
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
-cp packages/db/.env.example packages/db/.env
 # fill in Clerk keys + your local secrets
 
 # 2. Start postgres + apply schema
@@ -34,7 +33,7 @@ pnpm dev
 
 | Layer | Tech |
 | --- | --- |
-| Package manager | **pnpm 11** (workspaces) |
+| Package manager | **pnpm 11** (workspaces, root devDependencies hoisted) |
 | Backend | **Hono 4** + `@hono/zod-openapi` (typed routes + OpenAPI 3.1) + **Prisma 7** + `@prisma/adapter-pg` + **@clerk/backend** (JWT verify) + pino logger + Result pattern |
 | Frontend | **Next.js 16** (app router, Turbopack) + **Tailwind v4** + **Biome** (lint + format) + **shadcn/ui** + **Clerk** + Server Actions |
 | Auth | **Clerk** — shared across api (JWT verification) and web (Next.js SDK). Two roles: `ADMIN`, `CLIENT`. |
@@ -42,13 +41,48 @@ pnpm dev
 | Webhooks | **Svix** (Clerk's webhook infra) — verified via `verifyWebhook()` from `@clerk/backend/webhooks` |
 | Database | **Postgres 18** (Docker compose for dev + prod) |
 | CI/CD | **GitHub Actions** (PR gate + per-branch release + Dokploy webhook) |
-| Format/lint | **Biome** (single tool, replaces eslint + prettier) |
+| Format/lint | **Biome** (single tool, replaces eslint + prettier, one config at root) |
+
+---
+
+## Repo layout
+
+```
+.
+├── apps/
+│   ├── api/                     Hono backend
+│   └── web/                     Next.js frontend
+├── packages/
+│   ├── db/                      Prisma schema + client + migrations
+│   └── shared-types/            zod schemas shared across apps
+├── biome.json                   SINGLE lint + format config (root)
+├── pnpm-workspace.yaml          workspaces + override (utf-8-validate peer fix)
+├── pnpm-lock.yaml               single root lockfile
+├── tsconfig.base.json           shared TS config (every package extends it)
+├── docker-compose.yml           dev (postgres only)
+├── docker-compose.prod.yml      prod-like full stack
+└── .github/workflows/           ci.yml, check-branch.yml, check-pull-request.yml, release.{prod,test}.yml
+```
+
+### Root devDependencies — what lives there and why
+
+`package.json` (root) holds every tool that more than one workspace uses. Sub-packages stay slim (no `biome`, `typescript`, `vitest`, etc. duplicated). The convention:
+
+| Tool | Reason |
+| --- | --- |
+| `@biomejs/biome` | lint + format for every package — single config at root |
+| `typescript` | every package typechecks via `tsc` |
+| `@types/node` | shared by api + db + scripts |
+| `tsx` | api runs via `node --import tsx`; also db seed + scripts |
+| `vitest` | unit tests in api + web |
+| `@hono/zod-openapi`, `zod` | used in api routes + shared-types — runtime deps |
+| `vitest` | 2 packages (api + web) |
+
+Rule: hoist to root when 2+ packages need it. Runtime deps (`zod`, `@hono/zod-openapi`) go in `dependencies`; dev tools in `devDependencies`. Per-package deps stay when only that package needs them (e.g. `@clerk/nextjs` only in web).
 
 ---
 
 ## Architecture
-
-### High-level
 
 ```
                        ┌──────────────────────────────────┐
@@ -63,7 +97,7 @@ pnpm dev
    ┌──────────────────────────────────┐  ┌─────────────────────────┐
    │            apps/api              │  │  /webhooks/clerk        │
    │          (Hono + Node)          │  │   verifyWebhook()       │
-   │  /items  /users  /users/me      │  │   → upsert local User   │
+   │  /users/me  /users (admin)      │  │   → upsert local User   │
    │  /health /docs /openapi.json    │  └─────────────────────────┘
    │  /dev/issue-token (dev only)    │
    └────────┬─────────────────┬──────┘
@@ -71,9 +105,9 @@ pnpm dev
             ▼                  ▼
    ┌─────────────────┐  ┌─────────────────────────────┐
    │   packages/db   │  │     packages/shared-types    │
-   │   Prisma schema │  │   cross-cutting + features/ │
+   │   Prisma schema │  │   cross-cutting/ + features/ │
    │   + client      │  │   - apiError, pagination    │
-   │                 │  │   - item, user (per-domain) │
+   │                 │  │   - user (per-domain)       │
    └─────────────────┘  └─────────────────────────────┘
             ▲                  ▲
             │                  │
@@ -87,26 +121,8 @@ pnpm dev
    │   (client)/client/  CLIENT-only   │
    │  features/                        │
    │   auth/   getCurrentSession,      │
-   │           guards, role context     │
-   │   profile/  api client + types     │
+   │           guards, role context    │
    └───────────────────────────────────┘
-```
-
-### Repo layout
-
-```
-.
-├── apps/
-│   ├── api/                     Hono backend (see apps/api/README.md)
-│   └── web/                     Next.js frontend (see apps/web/README.md)
-├── packages/
-│   ├── db/                      Prisma schema + client (see packages/db/README.md)
-│   └── shared-types/            zod schemas shared across apps (see packages/shared-types/README.md)
-├── docker-compose.yml           dev (postgres only)
-├── docker-compose.prod.yml      full stack (prod-like local validation)
-├── biome.json                   shared lint + format config
-├── tsconfig.base.json           shared TS config (every package extends it)
-└── .github/workflows/           ci.yml, release-prod.yml, release-test.yml
 ```
 
 ---
@@ -121,7 +137,9 @@ pnpm dev
 | Run only the api | `pnpm dev:api` |
 | Run only the web | `pnpm dev:web` |
 | Typecheck all packages | `pnpm typecheck` |
-| Lint + format | `pnpm lint` / `pnpm lint:fix` |
+| Lint + format (read) | `pnpm lint` |
+| Lint + format (write) | `pnpm lint:fix` / `pnpm format` |
+| Combined lint+format+rules check | `pnpm check` |
 | Build everything | `pnpm build` |
 | Apply Prisma migration (dev) | `pnpm db:migrate:dev` |
 | Regenerate Prisma client (after schema change) | `pnpm db:generate` |
@@ -134,7 +152,7 @@ pnpm dev
 # 1. Edit packages/db/prisma/schema.prisma
 # 2. Generate the migration
 pnpm db:migrate:dev --name your_change_name
-# 3. Confirm the new file in packages/db/prisma/migrations/2026.../migration.sql
+# 3. Confirm the new file in packages/db/migrations/<timestamp>_your_change_name/migration.sql
 # 4. Commit it — every dev / CI / prod pulls the same migration
 ```
 
@@ -144,15 +162,15 @@ Never `prisma db push` against the prod DB. Always use committed migrations.
 
 Three places, same key, same order:
 
-1. `apps/<app>/src/env.ts` — zod schema with `.default()` or `.min(1)` for required
-2. `apps/<app>/.env.example` — placeholder value + comment
-3. `apps/<app>/.env` — your actual local value (gitignored)
+1. `apps/<app>/src/env.ts` — zod schema with `.default()` or `.min(1)` for required.
+2. `apps/<app>/.env.example` — placeholder value + comment.
+3. `apps/<app>/.env` — your actual local value (gitignored).
+
+For vars consumed by `docker-compose.prod.yml` add to root `.env` and `.env.example` too. Compose substitutes via `${VAR}`.
 
 After editing, `pnpm typecheck` to confirm `env.<KEY>` is type-safe.
 
-### When you add a new zod schema to the wire
-
-`packages/shared-types/src/<cross-cutting|features>/<name>.ts` — owns **both** the zod schema AND the inferred TS type. Then re-export from `packages/shared-types/src/index.ts`. Both api (for request/response validation) and web (for typed fetch helpers) consume from the same file.
+> **Heads-up — `NEXT_PUBLIC_*` and Docker**: `NEXT_PUBLIC_*` is **inlined at build time**, not runtime. Inside Docker, the web bundle must reference the **in-container** api URL (`http://api:8080`), not the host-side `NEXT_PUBLIC_API_URL=http://localhost:4000`. The compose file hardcodes the build ARG to `http://api:8080`; the `client.ts` schema provides the dev-mode default. Don't set `NEXT_PUBLIC_API_URL` in root `.env` for Docker — it'll silently be ignored.
 
 ---
 
@@ -165,7 +183,7 @@ Cross-feature / cross-module imports use the `@/` alias. Sibling imports within 
 ```ts
 // ✓ cross-module
 import { handleResult } from '@/core/handle';
-import { itemDtoSchema } from '@app/shared-types';
+import { userDtoSchema } from '@app/shared-types';
 
 // ✗ deep relative paths
 import { handleResult } from '../../core/handle';
@@ -187,8 +205,7 @@ src/
 ├── logger.ts              shared infra
 ├── types/                 shared infra (Hono context augmentation)
 └── features/
-    ├── items/             one feature, one folder
-    ├── users/             (auth lives at top because it crosses everything)
+    ├── users/             the one feature in this template
     ├── health/
     └── webhooks/
 ```
@@ -200,10 +217,11 @@ If you're tempted to put feature-specific code in a top-level folder, move it un
 The api's services never throw. They return `Result<T>` (`ok(value)` or `err(AppError)`). The handler in `core/handle.ts` converts that to a Response.
 
 ```ts
-async list(q: ListQuery): Promise<Result<ItemDto[]>> {
+async syncSelf(auth: ClerkAuthContext): Promise<Result<UserDto>> {
   try {
-    const rows = await this.items.list(q);
-    return ok(rows.map(toItemDto));
+    const clerkUser = await this.clerk.users.getUser(auth.userId);
+    // ...
+    return ok(toUserDto(row));
   } catch (cause) {
     return err(errInternal(cause));
   }
@@ -220,17 +238,14 @@ Throw-free flows mean:
 Every route declares its request + response via zod schemas. The api auto-registers them with `@hono/zod-openapi`. `c.req.valid('json' | 'param' | 'query')` is type-safe — TS knows the exact shape.
 
 ```ts
-const createRoute = createRoute({
+const syncSelfRoute = createRoute({
   method: 'post',
-  path: '/',
-  security: bearerSecurity,       // shared constant — auth required
-  request: {
-    body: { content: { 'application/json': { schema: createUserBodySchema } } },
-  },
+  path: '/me',
+  security: bearerSecurity,
   responses: {
-    201: { content: { 'application/json': { schema: userDtoSchema } }, description: 'user created' },
-    ...authErrorResponses,         // 401 + 403 spread
-    409: conflictResponse[409],     // named response — no inline copy-paste
+    200: { content: { 'application/json': { schema: userDtoSchema } }, description: 'user mirrored' },
+    ...authErrorResponses,
+    500: { description: 'sync failed' },
   },
 });
 ```
@@ -265,6 +280,10 @@ The web's self-sync owns the Clerk BAPI write for role/userId — keeps `CLERK_S
 
 There is no `/v1/`, `/v2/` prefix. If you ever need to version, add it per-route, not globally. The README, OpenAPI doc, and dev URLs all drop the version.
 
+### 8. HTTP requests are dev-logged in the web
+
+`ApiClient.execute()` (the single chokepoint for every api call) emits a `logger.debug` line per request (method, path, hasAuth, hasBody, durationMs) and a `logger.warn` on non-2xx. The web logger is dev-only — `noop` in prod. Use it to debug sync/redirect loops during development; the api's pino is the source of truth in prod.
+
 ---
 
 ## Auth flow in detail
@@ -297,7 +316,7 @@ Web's (authenticated) layout renders → getCurrentSession() called
 ### Authenticated request to api
 
 ```
-Web fetch → POST /items
+Web fetch → POST /users/me
    Bearer <Clerk session JWT>
    ↓
 api requireAuth middleware
@@ -306,11 +325,11 @@ api requireAuth middleware
      - authorizedParties check (only if azp claim present)
    → c.set('auth', ClerkAuthContext)
    ↓
-itemsAdmin.use('*', requireRole(ADMIN))
+usersAdmin.use('*', requireRole(ADMIN))
    → throws 403 if role !== ADMIN
    ↓
-items.openapi(createRoute, handler)
-   → handleResult(await service.create(auth, body), c)
+users.openapi(syncSelfRoute, handler)
+   → handleResult(await service.syncSelf(auth), c)
 ```
 
 ---
@@ -325,11 +344,6 @@ items.openapi(createRoute, handler)
 | GET | `/docs` | dev only | Scalar UI |
 | POST | `/webhooks/clerk` | Svix sig | user.updated / user.deleted |
 | POST | `/dev/issue-token` | dev only | mint Clerk session JWT by email |
-| GET | `/items` | public | paginated list |
-| GET | `/items/{id}` | public | get by id |
-| POST | `/items` | ADMIN | create |
-| PATCH | `/items/{id}` | ADMIN | update |
-| DELETE | `/items/{id}` | ADMIN | soft-delete |
 | GET | `/users/me` | auth | local DB-backed user row |
 | POST | `/users/me` | auth | self-sync (Clerk → DB) |
 | POST | `/users` | ADMIN | admin provision + role assign |
@@ -360,6 +374,7 @@ app/
 | API Prisma `error`/`warn` | always | `LOG_LEVEL` |
 | API Prisma `query` | optional | `LOG_QUERIES=true` |
 | Web (dev) | `import { logger } from '@/lib/logger'` — stdout | NODE_ENV ≠ production |
+| Web api-client | per-request (`api:request` / `api:response` / `api:error`) | NODE_ENV ≠ production |
 | Web (prod) | nothing (the dev logger is a no-op) | — |
 
 ---
@@ -368,51 +383,110 @@ app/
 
 Four workflows, image-first and branch-aware:
 
-1. **`ci.yml`** — runs on PR to `main`/`test`. Single job: install → lint → typecheck → unit tests → build api → build web. No Postgres, no migrations — those are runtime concerns.
+1. **`ci.yml`** — runs on PR. Single job: install → lint → check → typecheck → unit tests → build api → build web. No Postgres, no migrations — those are runtime concerns.
 2. **`release-prod.yml`** — runs on push to `main`. Stable channel. Builds per-service prod images (`:stable` + `:<semver>`) using cache `:buildcache`, then curls the prod Dokploy webhook for each.
 3. **`release-test.yml`** — runs on push to `test`. Prerelease channel. Same flow, `test` channel.
 4. **Migrations** run inside the api container's entrypoint at boot, not in CI.
 
 ```
-PR opened    → ci.yml (lint/typecheck/test/build)
+PR opened    → ci.yml (lint/check/typecheck/test/build)
 PR merged into test → release-test.yml (test image + Dokploy webhook test)
 PR merged into main → release-prod.yml (prod image + Dokploy webhook prod)
 container boot     → apps/api/docker-entrypoint.sh (prisma migrate deploy → node)
 ```
 
-### Branches + commits
+### Gitflow — three-tier circular
 
-- `main` → every push triggers `release-prod.yml`. Stable releases (`vX.Y.Z`).
-- `test` → every push triggers `release-test.yml`. Prereleases (`vX.Y.Z-test.N`).
-- `feature/*`, `fix/*`, `chore/*` etc. merge into `test` first, then promote to `main`.
-- Conventional commits enforced by CI (`feat:`, `fix:`, `chore:`, `docs:` …).
+We use a 3-tier GitFlow with `dev` as the day-to-day integration branch. The cycle:
+
+```
+feature/<name> ─┐
+fix/<name>     ─┤  ← your work, branches off dev
+chore/<name>   ─┤
+               │
+               ▼ PR (review)
+              test   ← features accumulate here, validates in staging
+               │
+               ▼ periodic release PR (test → main)
+              main   ← every push triggers a stable release
+               │
+               ▼ post-release sync (main → dev)
+              dev    ← dev catches up; next cycle starts here
+```
+
+| Branch | Role | Push trigger |
+| --- | --- | --- |
+| `dev` | Day-to-day integration. Features fork from here. | — |
+| `test` | Staging. Features PR in here. Validates in the staging environment. | every push → `release-test.yml` (test-channel prerelease) |
+| `main` | Production. Stable-channel releases. | every push → `release-prod.yml` (stable release) |
+
+#### The cycle in steps
+
+1. **Branch from `dev`.** `git checkout -b feature/my-change dev`.
+2. **PR into `test`.** Open the PR against `test`. Reviewers approve. CI must pass.
+3. **Merge → `test`.** Squash + delete branch. The change is now in the staging environment.
+4. **Periodic release to `main`.** When `test` is ready to ship, open a PR `test → main`. CI runs again. On merge, `release-prod.yml` publishes `:latest` + `:<semver>` images and curls the prod Dokploy webhook.
+5. **Sync `main` back to `dev`.** After step 4, open (or auto-create) a PR `main → dev` to keep the working branch current. This catches the release commits, hotfixes that landed directly on `main`, and any merge commits.
+
+A `feature/*` branch never opens a PR to `main` directly. Hotfixes on `main` get a follow-up `main → dev` sync to land them in the integration branch.
+
+### Conventional commits
+
+- Conventional commits enforced by CI (`feat:`, `fix:`, `chore:`, `docs:` …). Both PR title and every commit message are checked.
+- `feat: ...` → minor bump. `fix: ...` → patch. `feat!: ...` or `BREAKING CHANGE:` → major.
 
 ---
 
-## What's where — reading the codebase
+## Docker
+
+Two compose files:
+
+| File | Use |
+| --- | --- |
+| `docker-compose.yml` | Dev. Postgres only on `:5440`. Run api + web on host with hot reload. |
+| `docker-compose.prod.yml` | Prod-like local validation. Full stack via Dockerfiles. Exposes web on `:3000`, api on `:4000`. |
+
+### The `NEXT_PUBLIC_API_URL` rule (read this if syncSelf fails in Docker)
+
+`NEXT_PUBLIC_*` is **inlined into the JS bundle at build time**. In Docker, the web container must reference the **in-container** api URL (`http://api:8080`), not the host-side `localhost:4000`. If you forget:
+
+1. Web builds with `NEXT_PUBLIC_API_URL=http://localhost:4000` (from `.env`).
+2. Web runs in container, calls `http://localhost:4000` from inside → ECONNREFUSED.
+3. SyncSelf fails. `actions.ts` sees null → revokes Clerk session → redirect → loop.
+
+Fix: the compose file hardcodes `NEXT_PUBLIC_API_URL=http://api:8080` as a build ARG. Don't override it from `.env` for Docker.
+
+### Other Docker notes
+
+- `DATABASE_URL` is forced to `postgres:5432` (compose service name) inside the api container — overrides any host-side `localhost:5440`.
+- `CORS_ORIGIN` defaults to `http://localhost:${WEB_HOST_PORT:-3000}` so it tracks the host-side web port.
+- The api runs `pnpm --filter @app/db migrate:deploy` from `docker-entrypoint.sh` before exec'ing the api.
+
+---
+
+## Where to look — reading the codebase
 
 | Want to learn… | Start at |
 | --- | --- |
-| How an HTTP request is processed | `apps/api/src/index.ts` (boot) → `apps/api/src/features/items/routes.ts` (split router) |
+| How an HTTP request is processed | `apps/api/src/index.ts` (boot) → `apps/api/src/features/users/routes.ts` (split router) |
 | How auth is verified server-side | `apps/api/src/auth/clerk.ts` (`verifyClerkToken`, `requireAuth`, `attachUserLogger`) + `auth/role.ts` (`requireRole`) |
-| How OpenAPI + Scalar docs are wired | `apps/api/src/scalar/auth-guide.ts` + `apps/api/src/openapi/{security,responses}.ts` |
+| How OpenAPI + Scalar docs are wired | `apps/api/src/openapi/{security,responses}.ts` |
 | How Clerk webhook events sync the local DB | `apps/api/src/features/webhooks/{routes,service}.ts` |
 | How the frontend reads the role on the client | `apps/web/src/features/auth/role-context.tsx` + `useRole()` hook |
 | How a server-component role gate works | `apps/web/src/app/(admin)/layout.tsx` (compare with `(authenticated)/layout.tsx`) |
 | How the JWT template claims flow through | Clerk dashboard → JWT template → `apps/api/src/auth/clerk.ts` `rawRole` extraction |
 | How pagination metadata is shared | `packages/shared-types/src/cross-cutting/pagination.ts` + `paginationResponseSchema()` factory |
+| How the web sync self-bootstraps the local User row | `apps/web/src/features/auth/services/auth.service.ts` (`getOrSyncMyUserSession`) + `actions.ts` |
 
 ---
 
-## Project status
+## What's shipped vs what you add
 
-This is a starter template. Business features are added per-project. The current template ships:
+This template ships the boilerplate. The only domain entity is **User**. When you fork:
 
-- Hono api with one resource (`items`) demonstrating the full Repository + Service + Result + OpenAPI layering
-- Clerk auth wired end-to-end (JWT verify on api, Next.js middleware on web, role-based middleware, self-sync)
-- Webhook + self-sync keeping local `User` rows current with Clerk
-- Two role-gated route groups (admin / client) with server + client render guards
-- Scalar UI at `/docs` with bearer-auth + dev token minting endpoint
-- Migration history under `packages/db/prisma/migrations/` (committed)
+1. **Replace `User` with your domain entity.** Add models to `packages/db/prisma/schema.prisma`, generate a migration, mount routes under `apps/api/src/features/<your-domain>/`.
+2. **Add route groups** for the new entity under `apps/web/src/app/(admin)/<your-domain>/` and `(client)/<your-domain>/`.
+3. **Wire shared zod DTOs** in `packages/shared-types/src/features/<your-domain>.ts`.
+4. **Add per-feature server actions** in `apps/web/src/features/<your-domain>/actions.ts`.
 
-When you fork: replace `items` with your first domain feature, add the matching `(admin)/<feature>/` + `(client)/<feature>/` route groups, add the corresponding `paginationResponseSchema(yourDto, 'Your')` to your `200` responses. The boilerplate handles itself.
+The boilerplate handles itself: auth, dev tools, build pipeline, lint/format, docker, CI/CD.

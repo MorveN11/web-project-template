@@ -28,20 +28,23 @@
 
 ### Frontend logging cheatsheet
 - `import { logger } from '@/lib/logger'`. Logger is dev-only — production builds strip every call because `NODE_ENV` is inlined at build time and `isDev` lives in `lib/env/server`.
+- `apps/web/src/lib/api-client.ts` logs each request via this same logger (`api:request` / `api:response` / `api:error`). Useful for debugging sync/redirect loops in dev.
 - For request payloads or anything sensitive, the dev-only logger is the right surface.
 
 ### VS Code workspace
 - `.vscode/settings.json` configures Biome as default formatter + format-on-save + safe-fix-on-save (imports + quickfix only). No `formatOnPaste` accidental cascade.
 - `.vscode/extensions.json` recommends the right extension set. Install on first open.
+- TypeScript SDK is pinned to the hoisted root via `js/ts.tsdk.path = ./node_modules/typescript/lib` — one version for the whole repo.
 
 ### Hard rules
 - **Do not import `process.env` outside the env files.** api: `apps/api/src/env.ts`. web: `apps/web/src/lib/env/{client,server}.ts`. Logger reads `isDev` from `lib/env/server`.
-- Do not import `@prisma/client` runtime into `apps/web`. Use `import type { ... } from '@app/db'`.
-- Do not add new dependencies without justification in the PR. Stdlib / already-installed packages > new ones.
-- Do not bypass `pnpm lint`. CI runs it on every PR.
-- Do not commit secrets. Use `.env.example` with placeholder values.
-- Conventional commits only — `feat`, `fix`, `chore`, `docs`, etc. CI rejects non-conforming titles/commits.
-- The repo has **no root-level devDependencies** — tooling lives in per-package devDeps or via the `.vscode/` config. Keep it that way.
+- **Do not import `@prisma/client` runtime into `apps/web`.** Use `import type { ... } from '@app/db'`.
+- **Do not duplicate shared devDependencies.** biome, typescript, vitest, tsx, @types/node live at the root. Per-package `package.json` only lists tools unique to that package. CI verifies via `pnpm install --frozen-lockfile`.
+- **Do not bypass `pnpm lint`.** CI runs it on every PR.
+- **Do not commit secrets.** Use `.env.example` with placeholder values.
+- **Conventional commits only** — `feat`, `fix`, `chore`, `docs`, etc. CI rejects non-conforming titles/commits.
+- **Never put `NEXT_PUBLIC_API_URL` in root `.env`.** It's a build-time-inlined var; the compose file hardcodes `http://api:8080` for Docker. The web's `client.ts` provides the dev default. The full "Docker" section in README explains why.
+- **Gitflow is `dev → test → main → dev`**. Features fork from `dev`, PR into `test`, periodic release `test → main`, then sync `main → dev`. Never PR a `feature/*` directly into `main`.
 
 ### Anti-patterns to avoid
 - Per-feature service that talks to `database` directly. The repository facade isolates schema details from business rules.
@@ -50,4 +53,5 @@
 - Client components for things that can be server components.
 - `any` types. Prefer `unknown` + narrowing or proper Zod inference.
 - A logger module that actually emits in production on the web.
-- Adding hooks, lint-staged, commitlint, etc. as root deps. CI handles enforcement; VS Code handles local format/fix.
+- Adding hooks, lint-staged, commitlint, etc. as per-package deps. CI handles enforcement; VS Code handles local format/fix.
+- Multiple `biome.json` files (sub-packages had them once — consolidated into one root config).

@@ -53,7 +53,8 @@ services:
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY:-}
       CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES}
-      CORS_ORIGIN: ${CORS_ORIGIN}
+      # CORS_ORIGIN must match the URL the browser hits — host-side.
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:${WEB_HOST_PORT:-3000}}
       SEED_ENABLED: ${SEED_ENABLED:-false}
     ports:
       - "${API_HOST_PORT:-4000}:8080"
@@ -75,7 +76,12 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        # In-container URL the bundled JS uses to call the api. ALWAYS
+        # the compose service name + port, NEVER the host-side
+        # NEXT_PUBLIC_API_URL — that's what the browser sees, not
+        # what the web container uses. Setting this to localhost
+        # makes every api request fail at runtime (syncSelf 404 loop).
+        NEXT_PUBLIC_API_URL: http://api:8080
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
         NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/iniciar-sesion}
         NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/auth/registro}
@@ -88,8 +94,6 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: ${NODE_ENV:-production}
-      API_URL: http://api:8080
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/iniciar-sesion}

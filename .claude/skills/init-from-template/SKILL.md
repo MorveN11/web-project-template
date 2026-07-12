@@ -24,6 +24,13 @@ Bootstrap a new project by copying the **web-project-template** monorepo templat
 
 Stop and ask if any of 1–3 are missing. Do not invent them.
 
+## Prereqs (verify before starting)
+
+- Node.js **≥ 24** (declared in `package.json` `engines.node`).
+- pnpm **≥ 11** (declared in `package.json` `engines.pnpm` and `packageManager`).
+- Docker (for local postgres via `docker compose`).
+- git.
+
 ## Template location
 
 The template tree lives in **two places**, and the skill checks them in this order:
@@ -37,7 +44,7 @@ Override via the `TEMPLATE_DIR` env var:
 TEMPLATE_DIR=/path/to/your/template-dir
 ```
 
-If neither path exists, ask the user to run the bootstrap sync (rsync from the source repo) and re-invoke the skill.
+If neither path exists, ask the user to run the bootstrap sync (rsync from the source repo, see "Keeping the template + skill in sync" below) and re-invoke the skill.
 
 ## Steps
 
@@ -56,30 +63,36 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 
 3. **Rename the workspace.** Replace `@app/<name>` and `web-project-template` with the new project's name across every `package.json` in `apps/*` and `packages/*`. Update `README.md` and `AGENTS.md` too. Rename the docker compose `name:`, image defaults (`web-project-template-api:local`), and POSTGRES_DB default (`web_project_template`).
 
-4. **Regenerate env examples.** Replace `replace_me` placeholders with the user's Clerk keys (if provided). Never write real secrets into `.env.example` files — those are committed.
+4. **Regenerate env examples.** Replace `replace_me` placeholders with the user's Clerk keys (if provided). Never write real secrets into `.env.example` files — those are committed. Do not add `NEXT_PUBLIC_API_URL` anywhere — the compose file hardcodes the in-container URL (`http://api:8080`) for Docker and `apps/web/src/lib/env/client.ts` provides the dev default.
 
 5. **Re-init git + branches.**
    - `cd <target>`
-   - `git init && git checkout -b test`
-   - `git add -A && git commit -m "chore: bootstrap from web-project-template" --no-verify`
+   - `git init`
+   - Create the three protected branches: `git checkout -b dev`, `git checkout -b test`, `git checkout -b main`, then `git checkout dev` (default working branch).
+   - Initial commit on `dev`: `git add -A && git commit -m "chore: bootstrap from web-project-template" --no-verify`.
+   - Mirror to `test` and `main` so all three share the same initial SHA: `git push origin dev test main` after configuring the remote.
    - Set remote: `git remote add origin git@github.com:<user>/<repo>.git`
+   - Tell the user the cycle: features fork from `dev`, PR into `test`, periodic release `test → main`, sync `main → dev`. The detailed flow lives in `CONTRIBUTING.md` § 2.
 
 6. **Install + verify.**
    - `pnpm install` — apps/api's `postinstall` runs `pnpm --filter @app/db generate`.
    - `pnpm db:migrate:dev` against the docker dev postgres.
-   - `pnpm typecheck`, `pnpm lint`, `pnpm test` — all must be clean.
+   - `pnpm typecheck`, `pnpm lint`, `pnpm check`, `pnpm test` — all must be clean.
+   - `pnpm build` — confirm both apps compile end-to-end (catches TS 6 `rootDir` and similar build-only errors).
 
 7. **Configure GitHub Secrets** (remind the user): see the scaffolded `.github/SECRETS.md`. Required:
    - `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
    - `DOKPLOY_URL`
    - `DOKPLOY_DEPLOY_WEBHOOK_{API,WEB}_{PROD,TEST}`
-   - `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_TEST_API_URL`
+   - `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+   - `NEXT_PUBLIC_TEST_API_URL` (the public URL where the test deployment's api is reachable; CI passes it as a Docker build arg)
 
 8. **Report.** Tell the user:
    - Tree copied and branches set.
    - `pnpm compose` for dev (uses `docker-compose.yml`, postgres only).
    - `pnpm compose:prod` for prod-like local validation (full stack via Dockerfiles).
    - Which GitHub secrets to add before merging to `test`/`main`.
+   - The 3-tier cycle: features fork from `dev`, PR to `test`, periodic release `test → main`, sync `main → dev`.
 
 ## Architecture summary
 
@@ -93,8 +106,16 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 | Backend Result pattern | `apps/api/src/core/result.ts` + `core/handle.ts` |
 | Backend structured logs | `apps/api/src/logger.ts` + `db/prisma-logging.ts` |
 | Frontend dev-only logger | `apps/web/src/lib/logger.ts` — no-op in prod |
+| Frontend api-client logging | `apps/web/src/lib/api-client.ts` — `api:request` / `api:response` / `api:error` |
 | Frontend server-action result wrapper | `apps/web/src/lib/safe-action.ts` |
 | Frontend env validation | `apps/web/src/lib/env/{client,server}.ts` |
+| Single lint/format config | `biome.json` (root) — covers every package |
+| Hoisted devDependencies | `package.json` (root): biome, typescript, tsx, vitest, @types/node, zod, @hono/zod-openapi |
+| Root env (compose reads from this) | `.env` (gitignored, `.env.example` is the template) |
+| Docker (dev) | `docker-compose.yml` — postgres only |
+| Docker (prod-like) | `docker-compose.prod.yml` — full stack via local Dockerfiles |
+| CI workflows | `.github/workflows/` (5 files: ci, check-branch, check-pull-request, release.prod, release.test) |
+| GH Actions version pinning | major-only (v6, v5, v4, v2) — see `.github/workflows/*.yml` |
 
 ## Hard rules (NEVER skip)
 
@@ -106,6 +127,10 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 - Never import `@prisma/client` runtime into `apps/web`. Use `import type { ... } from '@app/db'`.
 - Never put secrets in `.env.example` files.
 - Never hardcode registry/hostnames/tokens in workflow YAML. Every credential in `.github/workflows/*.yml` must reference a `secrets.*` reference.
+- Never put `NEXT_PUBLIC_API_URL` in root `.env` for Docker. The compose file hardcodes `http://api:8080` (in-container URL) as a build ARG because `NEXT_PUBLIC_*` is inlined at build time. The web's `client.ts` provides the dev default. See the README "Docker" section for the full explanation.
+- The template ships only the `User` domain. Replace it with the real domain entity when forking. Do not re-introduce placeholder features like `items`.
+- Pin GH Action versions to major-only (`@v6`, not `@v6.0.0`). When forking, keep this convention.
+- Engines: `node >=24`, `pnpm >=11`. Sub-packages must NOT carry duplicate biome, typescript, tsx, vitest, @types/node, zod, or @hono/zod-openapi — those are hoisted to the root.
 
 ## Keeping the template + skill in sync
 
@@ -126,6 +151,7 @@ When you change template files:
    ```
 3. Mirror to project-local copy (so `init-from-template` works on a fresh clone before the global cache is set up):
    ```
+   mkdir -p <template-repo>/.claude/templates
    rsync -a --delete \
      --exclude='node_modules' --exclude='.git' --exclude='dist' --exclude='build' \
      --exclude='.next' --exclude='.containers' --exclude='*.log' \
@@ -134,7 +160,8 @@ When you change template files:
      <template-repo>/ \
      <template-repo>/.claude/templates/web-project-template/
    ```
-4. Update this skill body if the changes affected inputs, branches, or hard rules.
+4. Update this skill body if the changes affected inputs, branches, hard rules, or step ordering.
+5. Copy the updated SKILL.md (and `references/`) to `~/.claude/skills/init-from-template/` if you want it globally available across sessions.
 
 Both skill locations — `~/.claude/skills/init-from-template/` (global, system-wide) and `<repo>/.claude/skills/init-from-template/` (project-embedded) — are kept identical.
 
@@ -144,9 +171,14 @@ Both skill locations — `~/.claude/skills/init-from-template/` (global, system-
 - `pnpm db:migrate:dev` errors with `datasource url is no longer supported` → schema was edited to put back `url = env(...)`. Remove it; URL belongs in `packages/db/prisma.config.ts`.
 - Postgres not running → `pnpm compose` first; `POSTGRES_HOST_PORT` must match `DATABASE_URL`.
 - `pnpm compose:prod` fails to find images → set `API_IMAGE`/`WEB_IMAGE` in `.env` or let it build locally without them.
-- CI lint errors from shadcn components → confirm `apps/web/biome.json` excludes `components/ui`.
+- CI lint errors from shadcn components → confirm `biome.json` (root) excludes `!**/apps/**/src/components/ui`.
+- `pnpm build` fails with `error TS5011: rootDir must be explicitly set` in `apps/api` → add `"rootDir": "./src"` to `apps/api/tsconfig.build.json`. TS 6 enforces this when `outDir` is set without an explicit rootDir.
+- Docker: syncSelf fails, infinite redirect loop → `NEXT_PUBLIC_API_URL` was baked at build time pointing to `localhost:4000`. Compose must hardcode `http://api:8080` as the build ARG. See the README "Docker" section.
 - Dokploy webhook fails → check the corresponding `DOKPLOY_DEPLOY_WEBHOOK_*` secret exists and the Dokploy side accepts `tag`+`service` query params.
-- Template files missing → `$TEMPLATE_DIR` doesn't exist or wasn't synced. Re-stage from the project copy via rsync.
+- Template files missing → `$TEMPLATE_DIR` doesn't exist or wasn't synced. Re-stage from the project copy via rsync (see "Keeping the template + skill in sync" above).
+- VS Code shows `{ expected` errors on Tailwind v4 at-rules (`@theme`, `@utility`, `@apply`, `@custom-variant`) → these are CSS Language Service false positives; add `"css.lint.unknownAtRules": "ignore"` to `.vscode/settings.json`, or install the official `biomejs.biome` extension (don't run `fronterior.biome-monorepo` alongside it).
+- VS Code takes forever to load → check that `.next/`, `node_modules/`, and `.claude/` are excluded from the file watcher in `.vscode/settings.json` (`files.watcherExclude`). 400+ MB of stale build artifacts is the usual culprit.
+- Sub-package has a `biome.json` → wrong. One config at root only. Per-package overrides were removed when the root config absorbed them.
 
 ## Anti-patterns to avoid
 
@@ -156,7 +188,12 @@ Both skill locations — `~/.claude/skills/init-from-template/` (global, system-
 - Importing PrismaClient into a client component. Always `import type` only in `apps/web`.
 - Replacing the per-feature repository with bare `database` injection in services.
 - Curling webhook URLs from local scripts. CI is the only place that triggers a redeploy.
+- Adding a sub-package `biome.json` to override the root config. One biome.json at root, always.
+- Adding shared devDependencies (biome, typescript, tsx, vitest, @types/node, zod, @hono/zod-openapi) to individual packages. Hoist to root.
+- Setting `shared-workspace-lockfile: false` in `pnpm-workspace.yaml`. The default (single root lockfile) prevents version drift across workspaces — the whole point of monorepos.
+- Adding `@/` import aliases without also updating `tsconfig.json` `paths`. Both required.
+- PRing a `feature/*` branch directly to `main`. Gitflow is `feature → dev → test → main → dev`.
 
 ## Tree snapshot
 
-See `references/template-tree.md` (installed alongside this SKILL.md under `<skill-dir>/references/`).
+See `references/template-tree.md` (installed alongside this SKILL.md under `<skill-dir>/references/`). It documents the file tree produced by `init-from-template` and lists which paths are safe to extend vs. locked.

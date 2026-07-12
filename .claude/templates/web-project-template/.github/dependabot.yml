@@ -1,0 +1,56 @@
+# Dependabot config — latest schema (v2). The `groups` field expects
+# a MAP (each key is the group name) rather than a list of objects.
+# See https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # ── Root workspace deps ───────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["dependencies"]
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+    open-pull-requests-limit: 10
+
+  # ── apps/api deps ────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/apps/api"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "api"]
+    open-pull-requests-limit: 10
+    groups:
+      hono-packages:
+        patterns: ["@hono/*", "hono"]
+      prisma-packages:
+        patterns: ["@prisma/*", "prisma"]
+      dev-dependencies:
+        dependency-type: "development"
+
+  # ── apps/web deps ────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/apps/web"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "web"]
+    open-pull-requests-limit: 10
+    groups:
+      react-packages:
+        patterns: ["react*", "@types/react*"]
+      shadcn-ui:
+        patterns: ["@radix-ui/*"]
+      dev-dependencies:
+        dependency-type: "development"
+
+  # ── GitHub Actions versions ──────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["ci"]
+    open-pull-requests-limit: 5

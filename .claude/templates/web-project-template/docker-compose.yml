@@ -1,0 +1,33 @@
+# Local infrastructure — postgres only. The api and web are intended to
+# run on the host with hot reload (`pnpm dev:api` and `pnpm dev:web`),
+# so we don't have to fight file-watcher permissions inside a docker
+# bind-mount.
+#
+# Override the Postgres port via `POSTGRES_HOST_PORT` in `.env`.
+#
+# Usage:
+#   pnpm compose        # docker compose --env-file .env up -d
+#   pnpm compose:down
+
+name: web-project-template
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-web_project_template}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5440}:5432"
+    volumes:
+      - ./.containers/postgres:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-web_project_template}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+networks: {}

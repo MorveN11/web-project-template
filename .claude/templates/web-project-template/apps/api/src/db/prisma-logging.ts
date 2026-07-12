@@ -1,0 +1,29 @@
+// Wire Prisma's internal events into our pino logger. Queries are opt-in
+// via LOG_QUERIES=true so prod logs stay request-scoped. Errors and
+// warnings always go through.
+
+import { database } from '@app/db';
+import { env } from '../env';
+import { logger } from '../logger';
+
+export function attachPrismaLogging() {
+  database.$on('query', (event) => {
+    if (!env.LOG_QUERIES) return;
+    logger.debug(
+      {
+        query: event.query,
+        params: event.params,
+        duration_ms: event.duration,
+      },
+      'prisma query',
+    );
+  });
+
+  database.$on('warn', (event) => {
+    logger.warn({ event }, 'prisma warn');
+  });
+
+  database.$on('error', (event) => {
+    logger.error({ event: event.message }, 'prisma error');
+  });
+}

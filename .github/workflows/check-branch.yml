@@ -11,11 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Validate branch name
-        uses: deepakputhraya/action-branch-name@master
+        uses: deepakputhraya/action-branch-name@v2
         with:
           regex: '^(feature|fix|chore|docs|feat|build|ci|test|refactor|perf|style|dependabot)\/.+$'
           allowed_prefixes: 'feature,fix,chore,docs,feat,build,ci,test,refactor,perf,style,dependabot'
-          ignore: 'main,test'
+          ignore: 'main,test,dev'
           min_length: 4
           max_length: 120
           help_text: 'Branch must match conventional prefixes: feature/, fix/, feat/, chore/, docs/, build/, ci/, test/, refactor/, perf/, style/, dependabot/'

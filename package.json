@@ -5,7 +5,7 @@
   "description": "Minimal web project template. Hono + Prisma + Postgres API, Next.js + shadcn + Clerk web, pnpm workspaces. Extend with features as the project grows.",
   "packageManager": "pnpm@11.10.0",
   "engines": {
-    "node": ">=22.22.0",
+    "node": ">=24",
     "pnpm": ">=11"
   },
   "dependencies": {

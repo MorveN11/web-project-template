@@ -96,11 +96,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.should_run.outputs.should_run == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
         if: steps.should_run.outputs.should_run == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -112,7 +112,7 @@ jobs:
           # than their Docker Hub username (e.g. org-owned repos). Falls back
           # to DOCKERHUB_USERNAME when the variable is unset.
           IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.service.context }}
           file: ${{ matrix.service.dockerfile }}

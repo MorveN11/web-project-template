@@ -1,0 +1,52 @@
+name: check-pull-request
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: ['**']
+
+jobs:
+  semantic-pull-request:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Title must follow Conventional Commits.
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: '^([^()]+)(?:\(([^()]+)\))?:\s.+$'
+          subjectPatternError: |
+            Subject does not match Conventional Commits. Expected:
+              type(scope): subject
+
+  commit-messages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 100
+      - name: Verify every commit title
+        uses: gsactions/commit-message-checker@v2
+        with:
+          pattern: '(?:build|style|docs|doc|refactor|test|fix|perf|chore|feat|ci|revert)(?:\(.+\))?:\s[a-zA-Z].+'
+          flags: 'g'
+          excludeDescription: true
+          excludeTitlePattern: '^Merge\b'
+          checkAllCommitMessages: true
+          errorMessage: |
+            All commit messages must follow Conventional Commits.
+            Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
+            Required format: type(scope): subject

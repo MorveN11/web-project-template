@@ -1,0 +1,16 @@
+{
+  "name": "@app/shared-types",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome check --write .",
+    "check": "biome check .",
+    "typecheck": "tsc --noEmit"
+  }
+}

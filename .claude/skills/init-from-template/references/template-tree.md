@@ -1,8 +1,8 @@
 ---
-description: Tree snapshot of the web-project-template (v4: Hono 4 + Prisma 7 + Next.js 15 + Tailwind v4 + Biome 2.5 + shadcn + Clerk + Docker + GH Actions + Dokploy).
+description: Tree snapshot of web-project-template (current: Node 24, pnpm 11, Hono 4 + Prisma 7 + Next.js 16 + Tailwind v4 + Biome 2.5 + Clerk + Docker + GH Actions + Dokploy). One User domain only.
 ---
 
-# Template tree (v4 snapshot)
+# Template tree (current snapshot)
 
 This is the file layout `init-from-template` produces. New features go under `apps/api/src/<feature>/` and `apps/web/src/features/<feature>/`. Schemas + generated types live in `packages/db/`.
 
@@ -12,85 +12,155 @@ web-project-template/
 │   ├── dependabot.yml
 │   ├── filters.yml
 │   ├── PULL_REQUEST_TEMPLATE.md
-│   ├── SECRETS.md            ← which secrets CI expects
+│   ├── SECRETS.md                  ← which secrets CI expects (created at fork time)
 │   └── workflows/
-│       ├── check-branch.yml        ← branch name lint (conventional prefixes)
-│       ├── check-pull-request.yml
-│       ├── ci.yml                  ← PR gates: install + lint + typecheck + test + build
+│       ├── check-branch.yml        ← branch name lint (conventional prefixes, ignores main/test/dev)
+│       ├── check-pull-request.yml  ← conventional-commits title + commit message validation
+│       ├── ci.yml                  ← PR gate: install + lint + check + typecheck + test + build
 │       ├── release.prod.yml        ← push to main: stable channel + prod images + Dokploy prod webhooks
 │       └── release.test.yml        ← push to test: prerelease channel + test images + Dokploy test webhooks
 ├── .vscode/
-│   ├── settings.json            ← Biome default formatter + format-on-save + safe-fix-on-save
-│   └── extensions.json           ← biome + tailwind + ts + prisma + playwright, exclude eslint/prettier
-├── .gitattributes              # force LF across the monorepo (CI/Docker are Linux)
-├── .npmrc                      # shared-workspace-lockfile=false
+│   ├── settings.json              ← Biome default formatter + format-on-save + ts.tsdk pinned to root
+│   └── extensions.json            ← biomejs.biome + tailwind + ts + prisma + playwright; exclude eslint/prettier/fronterior
+├── .agents/
+│   └── skills/                    ← project-local copies of Claude skills (Clerk family)
+├── .containers/                   ← docker volumes (postgres data) — gitignored
+├── .gitattributes                 ← force LF across the monorepo (CI/Docker are Linux)
+├── .dockerignore                  ← keep build context small
 ├── apps/
 │   ├── api/
 │   │   ├── .dockerignore
+│   │   ├── .env                   ← gitignored (mirrors .env.example)
 │   │   ├── .env.example
-│   │   ├── Dockerfile
-│   │   ├── biome.json
-│   │   ├── docker-entrypoint.sh        ← runs `prisma migrate deploy` here, NOT in CI
+│   │   ├── Dockerfile             ← 3 stages: deps → build → runner; uses `node --import tsx`
+│   │   ├── docker-entrypoint.sh   ← runs `pnpm --filter @app/db migrate:deploy` before exec'ing the api
 │   │   ├── package.json
-│   │   ├── tsconfig.build.json
-│   │   ├── tsconfig.json
+│   │   ├── tsconfig.json          ← extends tsconfig.base.json
+│   │   ├── tsconfig.build.json    ← TS 6 needs explicit `"rootDir": "./src"` when outDir is set
 │   │   ├── vitest.config.ts
 │   │   └── src/
-│   │       ├── auth/clerk.ts
-│   │       ├── core/{handle.ts, result.ts}
+│   │       ├── auth/
+│   │       │   ├── clerk.ts       ← JWT verify, requireAuth, attachUserLogger
+│   │       │   └── role.ts        ← requireRole middleware
+│   │       ├── core/
+│   │       │   ├── handle.ts      ← Result<T> → Hono Response
+│   │       │   └── result.ts      ← ok/err + error factories
 │   │       ├── db/prisma-logging.ts
-│   │       ├── env.ts
-│   │       ├── health/routes.ts
-│   │       ├── items/{index, schemas, repository, service, routes, mappers}.ts
-│   │       ├── logger.ts
-│   │       └── index.ts
-│   │   └── src/types/hono-context.ts   ← Hono ContextVariableMap augmentation
+│   │       ├── dev/               ← dev-only token minting (NEVER in prod)
+│   │       ├── env.ts             ← zod-validated runtime config
+│   │       ├── features/
+│   │       │   ├── health/        ← /health endpoint
+│   │       │   ├── users/         ← the ONE feature in this template (syncSelf, admin provisioning)
+│   │       │   └── webhooks/      ← Clerk webhook receiver (Svix signature verify)
+│   │       ├── logger.ts          ← pino single source
+│   │       ├── openapi/           ← shared security + responses constants
+│   │       ├── types/             ← Hono ContextVariableMap augmentation
+│   │       └── index.ts           ← boot: middleware → routes → error handler → serve
 │   └── web/
 │       ├── .dockerignore
+│       ├── .env                   ← gitignored
 │       ├── .env.example
-│       ├── .gitignore
-│       ├── Dockerfile
-│       ├── biome.json
-│       ├── components.json
+│       ├── Dockerfile             ← Next.js standalone, 3 stages
 │       ├── next.config.ts
 │       ├── package.json
 │       ├── postcss.config.mjs
-│       ├── proxy.ts
+│       ├── proxy.ts               ← clerkMiddleware gate
 │       ├── tsconfig.json
 │       ├── vitest.config.ts
 │       └── src/
 │           ├── app/
-│           │   ├── (authenticated)/{dashboard/page.tsx, layout.tsx}
-│           │   ├── auth/{sign-in, sign-up}/[[...catch-all]]/page.tsx
-│           │   ├── globals.css
-│           │   ├── layout.tsx
+│           │   ├── (auth)/
+│           │   │   ├── iniciar-sesion/[[...sign-in]]/page.tsx
+│           │   │   ├── registro/[[...sign-up]]/page.tsx
+│           │   │   └── error-rol/page.tsx
+│           │   ├── (authenticated)/{dashboard, layout}.tsx
+│           │   ├── (admin)/{admin/page.tsx, layout.tsx}
+│           │   ├── (client)/{client/page.tsx, layout.tsx}
+│           │   ├── globals.css    ← single source of tokens + base styles
+│           │   ├── layout.tsx     ← root: fonts + Navbar + Providers + RoleProvider
 │           │   ├── page.tsx
-│           │   └── providers.tsx
-│           ├── components/{layout/navbar.tsx, ui/button.tsx}
-│           ├── features/profile/{actions, constants, schemas, services/profile.service, types}.ts
-│           └── lib/{api-client.ts, env/{client,server}.ts, logger.ts, safe-action.ts, utils.ts}
+│           │   └── providers.tsx   ← 'use client' ClerkProvider wrapper
+│           ├── components/
+│           │   ├── layout/navbar.tsx
+│           │   └── ui/             ← shadcn components (excluded from biome formatting)
+│           ├── features/
+│           │   └── auth/
+│           │       ├── actions.ts          ← getCurrentSession, getCurrentToken
+│           │       ├── constants.ts        ← REDIRECT_URL, FALLBACK_REDIRECT_URL
+│           │       ├── guards.tsx          ← <RequireRole>, <IfRole>
+│           │       ├── role-context.tsx    ← useRole, useIsAdmin, useIsClient
+│           │       ├── services/
+│           │       │   └── auth.service.ts  ← getOrSyncMyUserSession (404 → sync retry)
+│           │       ├── types.ts            ← UserSession, UserRole re-export
+│           │       └── index.ts
+│           └── lib/
+│               ├── api-client.ts           ← ApiClient + RequestBuilder (single chokepoint, dev logs)
+│               ├── env/{client,server}.ts  ← t3-oss/env-nextjs schemas
+│               ├── logger.ts               ← dev-only noop
+│               ├── safe-action.ts          ← server-action result wrapper
+│               └── utils.ts
 ├── packages/
 │   ├── db/
-│   │   ├── README.md
-│   │   ├── package.json
+│   │   ├── package.json           ← runtime: Prisma 7, @prisma/adapter-pg, pg; no devDeps (all hoisted to root)
 │   │   ├── tsconfig.json
-│   │   ├── prisma.config.ts   ← Prisma 7: adapter URL lives here
-│   │   ├── prisma/{schema.prisma, seed.ts}
-│   │   └── src/{client.ts, types.ts, index.ts}
+│   │   ├── prisma.config.ts       ← Prisma 7: URL lives here, runtime uses driver adapter
+│   │   ├── prisma/
+│   │   │   ├── schema.prisma      ← single model: User. Replace at fork time.
+│   │   │   ├── migrations/
+│   │   │   │   └── <timestamp>_init/migration.sql
+│   │   │   └── seed.ts
+│   │   └── src/
+│   │       ├── client.ts          ← PrismaClient singleton
+│   │       ├── types.ts           ← re-exports Prisma types
+│   │       └── index.ts
 │   └── shared-types/
-│       ├── package.json
-│       ├── src/index.ts
-│       └── tsconfig.json
-├── docker-compose.yml         # postgres only — host runs api/web with hot reload
-├── docker-compose.prod.yml    # full stack — production-like local validation
-├── biome.json                 # single source of formatter + linter rules for both apps
-├── pnpm-workspace.yaml
+│       ├── package.json           ← zod + @hono/zod-openapi (hoisted from api)
+│       ├── tsconfig.json
+│       └── src/
+│           ├── cross-cutting/     ← apiErrorSchema, paginationResponseSchema
+│           ├── features/         ← per-domain DTOs (only `user` shipped)
+│           └── index.ts
+├── docker-compose.yml             ← dev: postgres only (host runs api/web)
+├── docker-compose.prod.yml        ← prod-like: full stack via local Dockerfiles
+├── biome.json                     ← SINGLE source of lint + format for every package
+├── pnpm-workspace.yaml            ← workspaces + overrides (utf-8-validate peer fix)
+├── pnpm-lock.yaml                 ← single root lockfile (shared-workspace-lockfile=true default)
+├── tsconfig.base.json             ← shared TS config (every package extends it)
+├── package.json                   ← name, version, description, scripts, engines, deps (zod, @hono/zod-openapi), devDeps (biome, ts, tsx, vitest, @types/node)
 ├── release.config.mjs
-├── tsconfig.base.json
 ├── .editorconfig
-├── .env.example
-└── .gitignore
+├── .env.example                   ← template for compose + Clerk secrets
+├── .gitignore
+├── AGENTS.md                      ← AI-assistant guidance
+├── CONTRIBUTING.md               ← dev flow + gitflow + conventions
+├── README.md                      ← top-level docs (architecture, stack, day-to-day)
+└── docs/
+    └── architecture.md            ← deep dive per layer
 ```
+
+## Engine pins (`package.json`)
+
+```json
+"engines": {
+  "node": ">=24",
+  "pnpm": ">=11"
+},
+"packageManager": "pnpm@11.10.0"
+```
+
+## Root devDependencies (hoisted)
+
+```json
+"devDependencies": {
+  "@biomejs/biome": "2.5.2",
+  "@types/node": "^22.0.0",
+  "tsx": "^4.23.0",
+  "typescript": "^6.0.3",
+  "vitest": "^4.1.10"
+}
+```
+
+Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. One install at root, one version everywhere.
 
 ## How to extend
 
@@ -98,23 +168,44 @@ web-project-template/
 | --- | --- |
 | New model | `packages/db/prisma/schema.prisma`, then `pnpm --filter @app/db migrate:dev` |
 | New backend feature | `apps/api/src/<feature>/{repository,service,routes,schemas,mappers,index}.ts` + mount in `src/index.ts`. Repository wraps `database`; service holds `Result<T>`; routes use `handleResult`. |
-| New protected page | `apps/web/src/app/(authenticated)/<page>/page.tsx` |
-| New shadcn component | `pnpm dlx shadcn@latest add <name>` (writes to `apps/web/src/components/ui/`; `biome.json` ignores those files from formatting) |
-| New env var | api: `apps/api/.env.example` + `apps/api/src/env.ts`. web: `apps/web/.env.example` + `apps/web/src/lib/env/{client,server}.ts`. root: `.env.example`. Test-env deploy vars are GH secrets (see `.github/SECRETS.md`). |
+| New protected page | `apps/web/src/app/(authenticated)/<page>/page.tsx` (or `(admin)/` or `(client)/`) |
+| New shadcn component | `pnpm dlx shadcn@latest add <name>` (writes to `apps/web/src/components/ui/`; root `biome.json` ignores those files via `!**/apps/**/src/components/ui`) |
+| New env var | api: `apps/api/.env.example` + `apps/api/src/env.ts`. web: `apps/web/.env.example` + `apps/web/src/lib/env/{client,server}.ts`. root: `.env.example` only if consumed by docker compose. **Never add `NEXT_PUBLIC_API_URL`** — compose hardcodes the in-container URL and `client.ts` provides the dev default. |
 | New workflow | `.github/workflows/<name>.yml`; mirror `ci.yml`'s single-job sequential style, no postgres service |
 | New GitHub secret | Add to repo Settings → Secrets, then document in `.github/SECRETS.md` |
 | New log line (dev only on web) | `import { logger } from '@/lib/logger'` |
+| Hoist a dep used by 2+ packages | Add to root `package.json`. Remove from sub-packages. Run `pnpm install` once. |
 
 ## What you do NOT modify
 
 - `pnpm-workspace.yaml` packages list (unless adding a new app or package).
 - The two compose file names (`docker-compose.yml`, `docker-compose.prod.yml`). Renaming breaks the package scripts.
 - The five workflow file names. Each one maps to a specific CI surface. (`release.prod.yml` + `release.test.yml` are intentionally separate — don't merge them.)
+- The 3-tier gitflow (`feature → dev → test → main → dev`). Do not PR `feature/*` directly to `main`.
 - Anything already referenced from a secret — credential strings must come from `secrets.*`, never literal.
-- `biome.json` at the root — every app extends it. Add per-app rules under `apps/<name>/biome.json` only when you need app-specific overrides.
+- `biome.json` at the root — every app extends it. Do not add per-package `biome.json`.
+- The `User` model — replace with the real domain at fork time, don't keep both.
 
 ## What CI does NOT do
 
-- Run a Postgres service. Unit tests are pure (`src/shared/__tests__/*`).
-- Run `prisma migrate deploy`. Migrations are applied at container boot by `apps/api/docker-entrypoint.sh`. If you add integration tests later, set them up against `pnpm compose` (local) or a Dokploy-managed test branch (CI).
-- Run husky/commitlint/lint-staged. Conventional commits enforced by `check-pull-request.yml`; format/fix locally via the Biome VS Code extension (`.vscode/extensions.json`) or `pnpm lint:fix`.
+- Run a Postgres service. Unit tests are pure.
+- Run `prisma migrate deploy`. Migrations are applied at container boot by `apps/api/docker-entrypoint.sh`.
+- Run husky/commitlint/lint-staged. Conventional commits enforced by `check-pull-request.yml`; format/fix locally via the Biome VS Code extension (`.vscode/extensions.json`) or `pnpm lint:fix` / `pnpm format`.
+
+## GH Actions version pinning (major-only)
+
+| Workflow step | Pin |
+| --- | --- |
+| `actions/checkout` | `@v6` |
+| `actions/setup-node` | `@v5` |
+| `pnpm/action-setup` | `@v4` |
+| `dorny/paths-filter` | `@v4` |
+| `cycjimmy/semantic-release-action` | `@v6` |
+| `docker/setup-buildx-action` | `@v4` |
+| `docker/login-action` | `@v4` |
+| `docker/build-push-action` | `@v7` |
+| `amannn/action-semantic-pull-request` | `@v6` |
+| `gsactions/commit-message-checker` | `@v2` |
+| `deepakputhraya/action-branch-name` | `@v2` |
+
+Keep this convention when forking. Major-only gives free patch upgrades; full SHAs give reproducibility at the cost of maintenance.

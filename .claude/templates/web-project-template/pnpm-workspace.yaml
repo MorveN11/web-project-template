@@ -1,0 +1,25 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  '@clerk/shared': true
+  '@prisma/engines': true
+  bufferutil: true
+  core-js: true
+  esbuild: true
+  prisma: true
+  sharp: true
+  utf-8-validate: true
+
+# Native build allowlist. Add any package whose postinstall compiles native code.
+onlyBuiltDependencies:
+  - "@clerk/shared"
+  - "@tailwindcss/oxide"
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "core-js"
+  - "esbuild"
+  - "prisma"
+  - "sharp"
+  - "unrs-resolver"

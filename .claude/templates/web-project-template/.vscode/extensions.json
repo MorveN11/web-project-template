@@ -1,0 +1,15 @@
+{
+  "recommendations": [
+    "biomejs.biome",
+    "editorconfig.editorconfig",
+    "bradlc.vscode-tailwindcss",
+    "ms-playwright.playwright",
+    "prisma.prisma",
+    "Anthropic.claude-code"
+  ],
+  "unwantedRecommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "fronterior.biome-monorepo"
+  ]
+}

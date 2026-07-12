@@ -1,0 +1,27 @@
+# Path-based matrix used by release.yml + ci.yml's `changes` job to know
+# which services changed. Only `api` and `web` are consumed by workflows;
+# the other keys are kept for documentation and future ad-hoc scripts.
+
+api:
+  - "apps/api/**"
+  - "packages/shared-types/**"
+
+web:
+  - "apps/web/**"
+  - "packages/shared-types/**"
+
+shared:
+  - "packages/**"
+
+config:
+  - "package.json"
+  - "pnpm-workspace.yaml"
+  - "tsconfig*.json"
+  - "biome.json"
+  - ".github/**"
+  - "docker-compose*.yml"
+  - ".env*.example"
+
+ci:
+  - ".github/workflows/**"
+  - "release.config.mjs"
