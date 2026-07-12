@@ -125,7 +125,10 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_TEST_API_URL }}
           tags: |
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:test
-            ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:${{ needs.release.outputs.new_tag }}-test
+            # `new_release_version` from cycjimmy/semantic-release-action
+            # already includes the prerelease suffix (e.g. `1.6.1-test.1`)
+            # for the test channel. Don't append `-test` again.
+            ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:${{ needs.release.outputs.new_tag }}
           cache-from: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:buildcache-test
           cache-to: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:buildcache-test,mode=max
 
@@ -135,7 +138,9 @@ jobs:
           DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
           WEBHOOK: ${{ secrets[matrix.service.webhook_secret] }}
           SERVICE: ${{ matrix.service.name }}
-          VERSION: ${{ needs.release.outputs.new_tag }}-test
+          # `new_tag` already includes the `-test.N` prerelease suffix
+          # for the test channel — no manual `-test` append.
+          VERSION: ${{ needs.release.outputs.new_tag }}
         run: |
           if [ -z "$WEBHOOK" ]; then
             echo "::warning::No test webhook for $SERVICE"
@@ -150,7 +155,7 @@ jobs:
         env:
           NS: ${{ vars.IMAGE_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
           SERVICE: ${{ matrix.service.name }}
-          VERSION: ${{ needs.release.outputs.new_tag }}-test
+          VERSION: ${{ needs.release.outputs.new_tag }}
         run: |
           echo "## Released \`${SERVICE}@${VERSION}\` (test)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
