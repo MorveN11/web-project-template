@@ -51,11 +51,16 @@
     "**/.next": true,
     "**/.turbo": true,
     "**/.containers": true,
-    "**/coverage": true
+    "**/coverage": true,
+    "**/.agents": true,
+    "**/.claude": true,
+    "**/.vscode": true
   },
   "files.exclude": {
     "**/.next": true,
-    "**/dist": true
+    "**/dist": true,
+    "**/.claude": true,
+    "**/.agents": true
   },
   "files.watcherExclude": {
     "**/.next/**": true,
@@ -63,6 +68,8 @@
     "**/dist/**": true,
     "**/.turbo/**": true,
     "**/.pnpm-store/**": true,
-    "**/coverage/**": true
+    "**/coverage/**": true,
+    "**/.agents/**": true,
+    "**/.claude/**": true
   }
 }
