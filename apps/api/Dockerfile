@@ -1,13 +1,14 @@
 # syntax=docker/dockerfile:1.7
-# Hono api. Three stages: deps → build → runner.
+# Hono api. Four stages: deps → build → prod-deps → runner.
 #
 # Workspace pnpm hoisting (root devDependencies: tsx, typescript,
 # @types/node, vitest, @biomejs/biome) means one install at `/app` covers
-# every package — no per-workspace install needed. The api itself only
-# needs `tsx` at runtime, which lives at /app/node_modules/tsx after
-# the deps stage.
+# every package. The api only needs `tsx` + prod deps at runtime, so
+# the `prod-deps` stage re-installs with `--prod` to drop ~90MB of
+# dev tooling (TypeScript, Vitest, Biome, @types) before the runner
+# stage copies anything to the final image.
 
-ARG NODE_VERSION=lts-alpine
+ARG NODE_VERSION=24-alpine
 
 FROM node:${NODE_VERSION} AS base
 WORKDIR /app
@@ -42,9 +43,20 @@ COPY apps/api ./apps/api
 RUN pnpm --filter @app/db generate
 RUN pnpm --filter @app/api build
 
+# ---- prod-deps ---------------------------------------------------------
+# Re-install prod-only deps into a clean tree. Drop devDeps
+# (typescript, vitest, @biomejs/biome, @types/*) so the runner image
+# only ships what the api needs at runtime + pnpm for the
+# `migrate:deploy` entrypoint.
+FROM base AS prod-deps
+COPY --from=build /app /app
+RUN pnpm install --filter @app/api... --offline --frozen-lockfile --prod --ignore-scripts && \
+    pnpm store prune
+
 # ---- runner ------------------------------------------------------------
-# Ship the whole workspace (workspace:* symlinks need real targets) +
-# the entrypoint that applies pending migrations before exec'ing the api.
+# Targeted COPY: only the paths the api needs at runtime. Skips
+# tsconfig, biome.json, pnpm-lock.yaml, biome config, and any source
+# files from packages not consumed at runtime.
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 ENV CI=true \
@@ -52,22 +64,19 @@ ENV CI=true \
     PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     PORT=8080
-# Pnpm stays available because the entrypoint runs
-# `pnpm --filter @app/db migrate:deploy`. Slimming further would mean
-# a raw `node node_modules/.bin/prisma migrate deploy` — defer until
-# pnpm is a measurable chunk.
 RUN corepack enable pnpm
 RUN addgroup -g 1001 -S nodejs && adduser -S api -u 1001 -G nodejs
 
-COPY --from=build --chown=api:nodejs /app /app
-RUN chmod +x /app/apps/api/docker-entrypoint.sh
+COPY --from=prod-deps --chown=api:nodejs /app/apps/api /app/apps/api
+COPY --from=prod-deps --chown=api:nodejs /app/packages /app/packages
+COPY --from=prod-deps --chown=api:nodejs /app/pnpm-workspace.yaml /app/
+COPY --from=prod-deps --chown=api:nodejs /app/node_modules /app/node_modules
 
 USER api
 WORKDIR /app/apps/api
 EXPOSE 8080
 ENTRYPOINT ["/app/apps/api/docker-entrypoint.sh"]
-# Run via tsx (hoisted to /app/node_modules) so source stays
-# un-transpiled — Node's ESM resolver rejects tsc's extensionless
-# relative imports. `--import` (not the `tsx` CLI) keeps PATH stable
-# for the entrypoint.
+# Run via tsx (in /app/node_modules from the prod-deps stage via the
+# root @types hoisted path) so source stays un-transpiled. `--import`
+# (not the `tsx` CLI) keeps PATH stable for the entrypoint.
 CMD ["node", "--import", "tsx", "src/index.ts"]

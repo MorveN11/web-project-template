@@ -5,8 +5,14 @@
 # @biomejs/biome, @types/node) means one install at `/app` covers
 # every workspace package. Turbopack picks typescript up from the
 # hoisted /app/node_modules during build.
+#
+# The Next.js standalone output already does the heavy lifting —
+# .next/standalone bundles only the api surface, server.js, and the
+# node_modules actually imported by the app (no devDeps, no Tailwind
+# config, no test framework). The runner stage just adds the static
+# assets + public dir.
 
-ARG NODE_VERSION=lts-alpine
+ARG NODE_VERSION=24-alpine
 
 FROM node:${NODE_VERSION} AS base
 WORKDIR /app
@@ -50,9 +56,10 @@ WORKDIR /app/apps/web
 RUN pnpm run build
 
 # ---- runner ------------------------------------------------------------
-# Standalone output: only `.next/standalone` + the static + public
-# assets ship. Everything else (node_modules, source, .next cache) is
-# dropped here.
+# Standalone output ships a minimal node tree: server.js + the
+# workspace node_modules the app actually imports + the source
+# stub. Add the static + public assets. No package manager needed
+# at runtime (Next.js standalone is self-contained).
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
