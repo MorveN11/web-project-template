@@ -1,13 +1,21 @@
 'use client';
 
-import type { UserSession } from '@/features/auth/types';
-// Client-side role context + hook. The root layout reads the session
-// server-side and passes `{ userId, role, firstName, lastName, ... }`
-// to <RoleProvider>. Client components read via `useRole()` for
-// conditional rendering (show/hide nav items, action buttons, etc.).
+// Client-side role context and hooks.
+//
+// The root layout reads the session server-side once and passes it
+// down through `<RoleProvider value={session}>`. Client components
+// then read it via `useRole()` (or the convenience hooks `useIsAdmin`
+// / `useIsClient`) without triggering another server round-trip —
+// useful for hiding nav items, action buttons, or whole panels based
+// on role.
+//
+// `useRole()` throws if called outside a `<RoleProvider>`. That's
+// intentional: it surfaces the wiring mistake loudly instead of
+// silently rendering the wrong UI.
 
 import { UserRole } from '@app/shared-types';
 import { createContext, type ReactNode, useContext } from 'react';
+import type { UserSession } from '@/features/auth/types';
 
 const RoleContext = createContext<UserSession | null>(null);
 
@@ -21,9 +29,10 @@ export function RoleProvider({ value, children }: ProviderProps) {
 }
 
 /**
- * Read the current user's role from React context.
- * Throws if used outside `<RoleProvider>` — that's a programmer
- * error (someone forgot to wrap the tree), not a runtime fallback.
+ * Read the current session from React context.
+ *
+ * Throws when called outside a `<RoleProvider>` — that's a wiring
+ * mistake (someone forgot to wrap the tree), not a runtime fallback.
  */
 export function useRole(): UserSession {
   const ctx = useContext(RoleContext);
@@ -33,20 +42,12 @@ export function useRole(): UserSession {
   return ctx;
 }
 
-/**
- * Render-prop guard for client components. Avoids the server round-trip
- * of `<RequireRole>` when the role is already known client-side.
- *
- *   const { role } = useRole();
- *   {role === UserRole.ADMIN && <AdminButton />}
- *
- * For declarative conditional include in client JSX, see the helper
- * components below.
- */
+/** `true` when the current session is an admin. */
 export function useIsAdmin(): boolean {
   return useRole().role === UserRole.ADMIN;
 }
 
+/** `true` when the current session is a client. */
 export function useIsClient(): boolean {
   return useRole().role === UserRole.CLIENT;
 }

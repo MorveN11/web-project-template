@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { Navbar } from '@/components/layout/navbar';
 import { getCurrentSession } from '@/features/auth/actions';
 
 interface Props {
@@ -14,10 +13,5 @@ export default async function AuthenticatedLayout({ children }: Props) {
   // resolves itself without a manual bounce.
   await getCurrentSession({ redirectIfNotFound: true });
 
-  return (
-    <div className="flex min-h-screen flex-col">
-      <Navbar />
-      <main className="flex-1">{children}</main>
-    </div>
-  );
+  return <>{children}</>;
 }

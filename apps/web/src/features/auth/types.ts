@@ -1,12 +1,21 @@
-// Public auth types — the shape returned by `getCurrentSession` and
-// any related helpers. Kept free of Clerk imports so non-server code
-// can reference the type without dragging in the SDK.
+// Public types shared by the auth feature.
 //
-// UserRole re-exported from @app/shared-types so the same enum flows
-// api ↔ web ↔ prisma unchanged.
+// Kept free of Clerk imports on purpose: a client component or a
+// pure helper can import `UserSession` without pulling the Clerk SDK
+// into its bundle. The only Clerk-adjacent concept exposed is the
+// `clerkId` string, which the api hands back as a plain field.
+//
+// UserRole re-exports from @app/shared-types so api ↔ web ↔ prisma
+// agree on the same enum without any web-side copy.
 
 export { UserRole, type UserRole as UserRoleType } from '@app/shared-types';
 
+/**
+ * The local-DB representation of the signed-in user, returned by
+ * `getCurrentSession()` and by `authService.getMyUserSession()`.
+ *
+ * Treat as read-only DTO. Dates arrive as ISO strings from the api.
+ */
 export interface UserSession {
   id: string;
   clerkId: string;
@@ -15,4 +24,6 @@ export interface UserSession {
   email: string;
   imageUrl: string | null;
   role: import('@app/shared-types').UserRole;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -1,16 +1,49 @@
+/* ============================================================================
+   globals.css — single source of truth for design tokens + base styles.
+
+   Reading order:
+     1. Imports              — Tailwind, plugins, third-party themes
+     2. Custom variants      — dark-mode selector hook for Tailwind v4
+     3. Token mapping        — theme inline block: bridge CSS vars to Tailwind utilities
+     4. Theme tokens         — root selector for light, dark class for dark, oklch palettes
+     5. Base                 — base layer: resets, html/body, headings, code, scrollbar
+     6. Animations           — keyframes shared by utility shorthands
+     7. Reusable utilities   — utility shorthands for common patterns
+
+   Editing guide:
+     - Color changes: edit the root and dark blocks only.
+     - Tailwind utility mapping: edit the theme inline block only.
+     - New cross-cutting style: add to the base layer.
+     - New reusable class used in 3+ places: add a utility at the bottom.
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   1. Imports
+   --------------------------------------------------------------------------- */
 @import "tailwindcss";
 @import "@clerk/ui/themes/shadcn.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+/* ---------------------------------------------------------------------------
+   2. Custom variants
+   --------------------------------------------------------------------------- */
 /* Dark mode is class-based via next-themes. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Tailwind v4 token mapping. All colors go through CSS vars so dark mode
-   is a one-class toggle, no separate palette. */
+/* ---------------------------------------------------------------------------
+   3. Token mapping — bridge raw CSS vars to Tailwind utilities.
+   Every color/font/radius used by a Tailwind utility goes through here, so
+   dark mode is a one-class toggle with no parallel palette.
+   --------------------------------------------------------------------------- */
 @theme inline {
+  /* --- Colors ---------------------------------------------------------- */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -27,31 +60,41 @@
   --color-link: var(--link);
   --color-link-hover: var(--link-hover);
 
-  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
-  --font-serif: "Source Serif 4", Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* --- Sidebar --------------------------------------------------------- */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 
+  /* --- Charts ---------------------------------------------------------- */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* --- Fonts ----------------------------------------------------------- */
+  --font-sans:
+    var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: var(--font-serif), Georgia, "Times New Roman", serif;
+  --font-mono:
+    var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* --- Radius ---------------------------------------------------------- */
   --radius: 0.625rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* Override Tailwind's built-in `.container` to the project's layout
-     convention: centered, single max-width at the 7xl breakpoint, with
-     responsive gutters. Result: `<div className="container">` matches
-     the old `.custom-container` markup exactly, with zero indirection.
-     Variables read by Tailwind v4's container utility:
-       --container-center        → margin-inline: auto
-       --container-{size}        → max-width at that breakpoint
-       --container-padding       → base inline padding
-       --container-{bp}-padding  → inline padding at that breakpoint */
-  --container-center: true;
-  --container-7xl: 80rem;
-  --container-padding: 1rem;
-  --container-sm-padding: 1.5rem;
-  --container-lg-padding: 2rem;
-
+  /* --- Tracking -------------------------------------------------------- */
   --tracking-normal: 0.025em;
   --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
   --tracking-tight: calc(var(--tracking-normal) - 0.025em);
@@ -60,11 +103,20 @@
   --tracking-widest: calc(var(--tracking-normal) + 0.1em);
 }
 
+/* ---------------------------------------------------------------------------
+   4. Theme tokens — light palette.
+   Override any var here to re-skin without touching the utility mapping.
+   --------------------------------------------------------------------------- */
 :root {
+  /* --- Surface --------------------------------------------------------- */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+
+  /* --- Brand ----------------------------------------------------------- */
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
@@ -73,33 +125,47 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
+
+  /* --- State ----------------------------------------------------------- */
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
 
-  /* Customizable brand link colors. Override per-theme or per-page. */
+  /* --- Links (customizable brand palette) ------------------------------ */
   --link: oklch(0.45 0.15 280);
   --link-hover: oklch(0.38 0.16 285);
 
-  /* Soft elevation scale — every Tailwind `shadow-*` utility uses
-     these vars so shadows stay consistent across components. */
-  --shadow-2xs: 0px 5px 25px 0px hsl(0 0% 0% / 0.05);
-  --shadow-xs: 0px 5px 25px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0px 5px 25px 0px hsl(0 0% 0% / 0.1), 0px 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow: 0px 5px 25px 0px hsl(0 0% 0% / 0.1), 0px 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow-md: 0px 5px 25px 0px hsl(0 0% 0% / 0.1), 0px 2px 4px -1px hsl(0 0% 0% / 0.1);
-  --shadow-lg: 0px 5px 25px 0px hsl(0 0% 0% / 0.1), 0px 4px 6px -1px hsl(0 0% 0% / 0.1);
-  --shadow-xl: 0px 5px 25px 0px hsl(0 0% 0% / 0.1), 0px 8px 10px -1px hsl(0 0% 0% / 0.1);
-  --shadow-2xl: 0px 5px 25px 0px hsl(0 0% 0% / 0.25);
+  /* --- Charts ---------------------------------------------------------- */
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+
+  /* --- Sidebar --------------------------------------------------------- */
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* ---------------------------------------------------------------------------
+   Dark palette — same keys, inverted lightness. Class toggled by next-themes.
+   --------------------------------------------------------------------------- */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
@@ -108,57 +174,115 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
+
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 18%);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+
   --link: oklch(0.7 0.12 280);
   --link-hover: oklch(0.78 0.14 285);
+
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
-html,
-body {
-  height: 100%;
-}
-
+/* ---------------------------------------------------------------------------
+   5. Base layer — element-wide defaults. Keep this section short; per-
+   component styling belongs with the component.
+   --------------------------------------------------------------------------- */
 @layer base {
-  /* Soft defaults for every element. Letter-spacing comes from
-     --tracking-normal so a single override cascades everywhere. */
+  /* Universal reset: cascading letter-spacing + border + focus ring. */
   * {
     letter-spacing: var(--tracking-normal);
-    border-color: var(--border);
+    @apply border-border outline-ring/50;
+  }
+
+  /* Sans body font with Inter stylistic alternates (cv11 single-storey 'a',
+     ss01 alt 'g'). Override per-element with `font-feature-settings: normal`. */
+  html {
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
   }
 
   body {
     background: var(--background);
     color: var(--foreground);
-    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    @apply bg-background text-foreground;
   }
 
-  /* Headings — serif + tight tracking + balanced wrap. Override
-     `--font-serif` or apply `font-sans` directly on a heading to
-     opt out per-component. */
+  /* Headings — serif + tight tracking + balanced wrap. Apply `font-sans`
+     on a heading to opt out per-component. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
   h1 {
-    @apply font-serif text-2xl font-semibold tracking-tight text-balance md:text-3xl;
+    @apply text-2xl tracking-tight md:text-3xl;
   }
 
   h2 {
-    @apply font-serif text-xl font-semibold tracking-tight text-balance md:text-2xl;
+    @apply text-xl tracking-tight md:text-2xl;
   }
 
   h3 {
-    @apply font-serif text-lg font-semibold tracking-tight text-balance md:text-xl;
+    @apply text-lg tracking-tight md:text-xl;
   }
 
   h4 {
-    @apply font-serif text-base font-semibold tracking-tight text-balance md:text-lg;
+    @apply text-base tracking-tight md:text-lg;
   }
 
-  /* Scrollbar — slim, theme-aware thumb. Hides track on macOS-style
-     overlays but keeps the thumb visible on Windows/Linux. */
+  h5 {
+    @apply text-sm tracking-tight md:text-base;
+  }
+
+  h6 {
+    @apply text-xs tracking-widest uppercase md:text-sm;
+  }
+
+  /* Code blocks — Fira Code with ligatures (`!=`, `=>`, `->`). */
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-feature-settings: "liga", "calt";
+  }
+
+  pre {
+    font-feature-settings: "liga", "calt", "ss02";
+  }
+
+  /* Tabular numerals for dense data tables. */
+  table {
+    font-feature-settings: "tnum";
+  }
+
+  /* Slim, theme-aware scrollbar. Track transparent on overlays; thumb
+     stays visible on Windows/Linux. */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -177,13 +301,14 @@ body {
     background: var(--foreground);
   }
 
-  /* Number inputs lose their spinner arrows by default — opt in with
+  /* Number inputs hide spinners by default — opt in with
      `appearance: auto` when you need them. */
   input[type="number"]::-webkit-inner-spin-button,
   input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
   }
+
   input[type="number"] {
     -moz-appearance: textfield;
     appearance: textfield;
@@ -191,53 +316,52 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
-   Reusable utility classes. Add to this block when a pattern shows up in
-   3+ components — promotes the common case to a one-word class while still
-   letting power users reach for raw Tailwind utilities.
+   6. Animations — shared @keyframes referenced by the utilities below.
    --------------------------------------------------------------------------- */
-
-@layer utilities {
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+@keyframes fade-in {
+  from {
+    opacity: 0;
   }
-
-  @keyframes slide-up {
-    from {
-      transform: translateY(20px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-
-  @keyframes shimmer {
-    0%,
-    100% {
-      opacity: 0.5;
-    }
-    50% {
-      opacity: 1;
-    }
-  }
-
-  @keyframes pulse-ring {
-    0%,
-    100% {
-      box-shadow: 0 0 0 0 var(--ring);
-    }
-    50% {
-      box-shadow: 0 0 0 8px transparent;
-    }
+  to {
+    opacity: 1;
   }
 }
 
+@keyframes slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--ring);
+  }
+  50% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   7. Reusable utilities — promote a pattern to a one-word class once it
+   appears in 3+ components. Power users can still reach for raw Tailwind.
+   --------------------------------------------------------------------------- */
 @utility muted {
   @apply text-muted-foreground;
 }

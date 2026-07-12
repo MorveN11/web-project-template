@@ -13,11 +13,11 @@ export default async function HomePage() {
         <code className="font-mono text-sm">/api</code>.
       </p>
       {userId ? (
-        <Button asChild>
+        <Button>
           <Link href="/dashboard">Open dashboard</Link>
         </Button>
       ) : (
-        <Button asChild>
+        <Button>
           <Link href={env.NEXT_PUBLIC_CLERK_SIGN_IN_URL}>Sign in</Link>
         </Button>
       )}

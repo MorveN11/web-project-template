@@ -1,19 +1,22 @@
-// Role-based render guards for server components.
+// Server-side render guards: render-or-skip based on the current role.
 //
-// `<RequireRole role="ADMIN">`      — children render ONLY when the
-//                                     current session matches the
-//                                     role; otherwise renders null.
-//                                     Useful when you want to hide
-//                                     sub-trees within an otherwise
-//                                     accessible page.
+// Both components read the session via `getCurrentSession({
+// redirectIfNotFound: false })` — they never redirect, they just hide
+// the children when the role doesn't match. Use them to gate
+// sub-trees inside an already-accessible page; use the route group
+// layouts (`(admin)/`, `(client)/`) to gate whole pages, since
+// those can redirect.
 //
-// `<IfRole role="ADMIN">…</IfRole>`  — same logic, more obvious at
-//                                     the call site when you want
-//                                     conditional include.
+// `<RequireRole role={UserRole.ADMIN}>` — renders `children` only
+// when the current session matches the role; otherwise renders
+// `fallback` (or nothing). Use when you need an explicit alternative
+// for the unauthorized case.
 //
-// Both are server components — they read the session via
-// `getCurrentSession({ redirectIfNotFound: false })`. No effect on
-// the api's role middleware; these are purely UI gates.
+// `<IfRole role={UserRole.ADMIN}>...</IfRole>` — same behavior, just
+// reads more naturally at the call site when there's no fallback.
+//
+// Neither guard enforces auth server-side: the api's role middleware
+// is the real gate. These are UI-only.
 
 import type { UserRole } from '@app/shared-types';
 import type { ReactNode } from 'react';
@@ -21,14 +24,17 @@ import { getCurrentSession } from './actions';
 
 interface Props {
   role: UserRole;
-  /** What to render when the role check fails. Default: render nothing. */
+  /** Rendered when the role check fails. Default: render nothing. */
   fallback?: ReactNode;
   children: ReactNode;
 }
 
+/**
+ * `redirectIfNotFound: false` so an unauthenticated request simply
+ * falls through to the fallback instead of being redirected from
+ * inside a render guard.
+ */
 async function checkRole(role: UserRole): Promise<boolean> {
-  // `redirectIfNotFound: false` so unauthenticated users fall through
-  // to the fallback (no redirect from inside a render guard).
   const session = await getCurrentSession({ redirectIfNotFound: false });
   return session?.role === role;
 }
@@ -36,6 +42,10 @@ async function checkRole(role: UserRole): Promise<boolean> {
 /**
  * Renders `children` only when the current session's role matches.
  * Otherwise renders `fallback` (or nothing).
+ *
+ *   <RequireRole role={UserRole.ADMIN} fallback={<NotAuthorized />}>
+ *     <AdminBadge />
+ *   </RequireRole>
  */
 export async function RequireRole({ role, fallback = null, children }: Props) {
   const allowed = await checkRole(role);

@@ -1,8 +1,8 @@
 import { UserRole } from '@app/shared-types';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { Navbar } from '@/components/layout/navbar';
 import { getCurrentSession } from '@/features/auth';
+import { FALLBACK_REDIRECT_URL } from '@/features/auth/constants';
 
 interface Props {
   children: ReactNode;
@@ -15,13 +15,8 @@ export default async function AdminLayout({ children }: Props) {
   const session = await getCurrentSession({ redirectIfNotFound: true });
 
   if (session.role !== UserRole.ADMIN) {
-    redirect('/auth/error-rol');
+    redirect(FALLBACK_REDIRECT_URL);
   }
 
-  return (
-    <div className="flex min-h-screen flex-col">
-      <Navbar />
-      <main className="flex-1">{children}</main>
-    </div>
-  );
+  return <>{children}</>;
 }

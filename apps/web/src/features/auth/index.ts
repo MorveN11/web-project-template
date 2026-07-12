@@ -1,30 +1,31 @@
-// Public surface for the auth feature.
+// Public surface for the auth feature. Import from `@/features/auth`
+// — never reach into individual files.
 //
-//   Server-side:
-//     getCurrentSession({ redirectIfNotFound, requireRole }) → UserSession | null
-//     getCurrentToken({ redirectIfNotFound })                → string | null
+// Server-side (read session, gate routes):
+//   getCurrentSession({ redirectIfNotFound }) → UserSession | null
+//   getCurrentToken({ redirectIfNotFound })   → string | null
+//   <RequireRole role={…}>                     → renders children or fallback
+//   <IfRole     role={…}>                      → same, sugar at call sites
 //
-//   Server-side render guards:
-//     <RequireRole role={UserRole.ADMIN}>…</RequireRole>
-//     <IfRole     role={UserRole.ADMIN}>…</IfRole>
+// Client-side (read session in components):
+//   <RoleProvider value={session}>…</RoleProvider>
+//   useRole()           → UserSession (throws outside the provider)
+//   useIsAdmin()        → boolean
+//   useIsClient()       → boolean
 //
-//   Client-side:
-//     <RoleProvider value={…}>…</RoleProvider>
-//     useRole() → RoleContextValue
-//     useIsAdmin(), useIsClient()
-//
-// Conventions:
-//   - `auth/actions.ts`     — all Clerk/server-side session work.
-//   - `auth/guards.tsx`     — server-component role gates.
-//   - `auth/role-context.tsx` — client-side role context + hooks.
-//   - `auth/types.ts`       — shared TS shapes (UserSession, UserRole).
-//   - `auth/constants.ts`   — route constants (REDIRECT_URL, …).
+// File layout:
+//   actions.ts              — Clerk session entry points, server-action boundary
+//   services/auth.service.ts — api calls (HTTP) for the user-session endpoints
+//   guards.tsx              — server-side role render guards
+//   role-context.tsx        — client-side role context + hooks
+//   types.ts                — UserSession, UserRole (re-exported from shared-types)
+//   constants.ts            — REDIRECT_URL, FALLBACK_REDIRECT_URL
 
 export {
   getCurrentSession,
   getCurrentToken,
 } from './actions';
-export { REDIRECT_URL, ROLE_ERROR_URL } from './constants';
+export { REDIRECT_URL } from './constants';
 export { IfRole, RequireRole } from './guards';
 export {
   RoleProvider,

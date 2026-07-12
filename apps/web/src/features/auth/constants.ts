@@ -1,12 +1,14 @@
-// Auth-related URLs that the actions module redirects to. Kept in a
-// separate file so feature-specific code can import them without
-// pulling the whole auth surface.
+// Auth-related route constants.
+//
+// Pulled into their own module so feature code (and tests) can
+// reference the sign-in URL without importing the whole auth surface
+// or hitting `env` directly. Both values come from the validated
+// client env, so any typo fails fast at boot rather than at runtime.
 
 import { env } from '@/lib/env/client';
 
+/** Page the app redirects to when the session is missing or invalid. */
 export const REDIRECT_URL = env.NEXT_PUBLIC_CLERK_SIGN_IN_URL;
-// Destination when a user signs in but their role hasn't been set
-// yet (e.g. webhook race, migration glitch, Clerk BAPI outage). Devs
-// manually resolve these by setting the role via the api admin
-// endpoint or the Clerk dashboard.
-export const ROLE_ERROR_URL = '/auth/error-rol';
+
+/** Page Clerk redirects to after a successful sign-in. */
+export const FALLBACK_REDIRECT_URL = env.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL;

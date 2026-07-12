@@ -3,14 +3,22 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import { shadcn } from '@clerk/ui/themes';
 import type { ReactNode } from 'react';
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
+import { getCurrentSession } from '@/features/auth/actions';
+import { RoleProvider } from '@/features/auth/role-context';
 import { env } from '@/lib/env/client';
 
 interface Props {
   children: ReactNode;
 }
 
-export function Providers({ children }: Props) {
+export async function Providers({ children }: Props) {
+  // Read the session server-side so the entire tree can call
+  // `useRole()` from client components without re-fetching. `null`
+  // when not signed in — client hooks should not be reachable on
+  // unauthenticated routes, but we pass `null` instead of crashing.
+  const session = await getCurrentSession({ redirectIfNotFound: false });
+
   return (
     <ClerkProvider
       publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
@@ -20,7 +28,7 @@ export function Providers({ children }: Props) {
       signUpFallbackRedirectUrl={env.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL}
       appearance={{ theme: shadcn }}
     >
-      {children}
+      {session ? <RoleProvider value={session}>{children}</RoleProvider> : children}
       <Toaster richColors position="top-right" />
     </ClerkProvider>
   );

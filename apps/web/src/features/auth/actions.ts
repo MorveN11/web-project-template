@@ -1,61 +1,33 @@
 'use server';
 
-// Auth helpers for server components and server actions.
+// Server-only entry points for the auth feature.
+//
+// This file is the boundary between Clerk's server SDK and the rest
+// of the Next.js app. Every export is wrapped in React's `cache()`
+// so a single render reads the session at most once.
 //
 //   getCurrentSession({ redirectIfNotFound }) → UserSession | null
-//     The local DB is the single source of truth for the session.
-//     Flow: read Clerk's session → resolve the JWT → call
-//     `GET /users/me` on the api → if the row doesn't exist yet
-//     (404), call `POST /users/me` (syncSelf) which creates it AND
-//     stamps Clerk's publicMetadata in one round-trip → return the
-//     fresh local row as the session. The current render always
-//     uses the api's response — never the stale JWT claims.
+//     Reads the Clerk session, asks the api for the local user row,
+//     and returns it. On first-ever sign-in the local row is created
+//     transparently via the service's "read or sync" path. When
+//     `redirectIfNotFound: true`, missing sessions redirect to the
+//     Clerk sign-in URL instead of returning null.
+//
 //   getCurrentToken({ redirectIfNotFound }) → string | null
-//     Returns the current Clerk session JWT.
+//     The current Clerk session JWT, for callers that need to call
+//     the api directly (e.g. server actions outside this feature).
+//
+// All api calls live in `services/auth.service.ts` — this file
+// only orchestrates Clerk auth + redirects.
 
-import { auth } from '@clerk/nextjs/server';
+import { auth, clerkClient } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
-import { profileService } from '@/features/profile/services/profile.service';
-import { ApiError } from '@/lib/api-client';
+import { authService } from '@/features/auth/services/auth.service';
 import { logger } from '@/lib/logger';
 import { isNextControlError } from '@/lib/next-control-errors';
-import { REDIRECT_URL, ROLE_ERROR_URL } from './constants';
+import { REDIRECT_URL } from './constants';
 import type { UserSession } from './types';
-
-/**
- * Read the local row for the current session. Returns `null` when the
- * row doesn't exist yet AND the sync also failed — caller should
- * redirect to the role error page so the user sees why.
- *
- * Two happy paths:
- *   1. GET /users/me  — local row exists, return it.
- *   2. GET /users/me  → 404 → POST /users/me (sync) → return the
- *      freshly-stamped local row.
- *
- * Either way the returned profile is the api's source of truth — the
- * `clerkUser.publicMetadata` path is no longer needed here.
- */
-async function readOrSyncProfile(token: string): Promise<UserSession | null> {
-  try {
-    return await profileService.getMyProfile(token);
-  } catch (cause) {
-    if (isNextControlError(cause)) throw cause;
-    if (!(cause instanceof ApiError) || cause.status !== 404) {
-      logger.warn({ cause }, 'getCurrentSession: getMyProfile threw');
-      return null;
-    }
-    // 404 → local row doesn't exist yet. Trigger syncSelf to create
-    // it + stamp Clerk's publicMetadata, then read the fresh row.
-    try {
-      return await profileService.syncMyProfile(token);
-    } catch (syncCause) {
-      if (isNextControlError(syncCause)) throw syncCause;
-      logger.warn({ syncCause }, 'getCurrentSession: syncMyProfile threw');
-      return null;
-    }
-  }
-}
 
 // ----- getCurrentSession ---------------------------------------------------
 
@@ -63,27 +35,34 @@ function _getCurrentSession(options: { redirectIfNotFound: true }): Promise<User
 function _getCurrentSession(options?: { redirectIfNotFound?: false }): Promise<UserSession | null>;
 async function _getCurrentSession({ redirectIfNotFound = false } = {}) {
   try {
-    const { isAuthenticated, getToken } = await auth();
+    const { isAuthenticated, sessionId, getToken } = await auth();
     const token = await getToken();
 
+    // Not signed in: short-circuit before any api call. With
+    // `redirectIfNotFound: true`, the redirect throws a control-flow
+    // error that Next.js catches — we never return.
     if (!isAuthenticated || !token) {
       if (redirectIfNotFound) redirect(REDIRECT_URL);
       return null;
     }
 
-    const session = await readOrSyncProfile(token);
+    // Service handles the 404 → syncSelf retry. `null` here means a
+    // non-404 failure (api down, 500, etc.) — revoke the Clerk
+    // session and bounce the user to sign-in so they can retry from a
+    // known-clean state.
+    const session = await authService.getOrSyncMyUserSession(token);
     if (!session) {
-      // Both GET and POST failed — bounce to the role error page so
-      // the user sees why (and so devs can debug).
-      redirect(ROLE_ERROR_URL);
+      const client = await clerkClient();
+      await client.sessions.revokeSession(sessionId);
+      redirect(REDIRECT_URL);
     }
 
-    // Pin the clerkId from Clerk's session (not the local row) so it
-    // always matches the live session, even if the local row's
-    // mirror is briefly stale.
     return session;
   } catch (cause) {
+    // Next.js redirects/notFound travel as thrown control values —
+    // rethrow them so the framework can handle them.
     if (isNextControlError(cause)) throw cause;
+    logger.warn({ cause }, 'getCurrentSession: unexpected failure');
     if (redirectIfNotFound) redirect(REDIRECT_URL);
     return null;
   }
