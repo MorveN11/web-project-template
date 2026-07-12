@@ -1,12 +1,23 @@
 # syntax=docker/dockerfile:1.7
-# Hono api. Four stages: deps → build → prod-deps → runner.
+# Hono api. Three stages: deps → build → runner.
 #
 # Workspace pnpm hoisting (root devDependencies: tsx, typescript,
-# @types/node, vitest, @biomejs/biome) means one install at `/app` covers
-# every package. The api only needs `tsx` + prod deps at runtime, so
-# the `prod-deps` stage re-installs with `--prod` to drop ~90MB of
-# dev tooling (TypeScript, Vitest, Biome, @types) before the runner
-# stage copies anything to the final image.
+# @types/node, vitest, @biomejs/biome) means one install at `/app`
+# covers every package. We tried a `prod-deps` stage that re-installed
+# with `--prod` to drop devDeps, but it broke pnpm's symlinks (the
+# `prisma` bin in particular) and the apps/api postinstall couldn't
+# find the CLI. Sticking with 3 stages costs ~90MB of devDeps in
+# the final image; the size is a one-time download per build and
+# the cached layer makes rebuilds cheap. Optimize later when pnpm
+# deploy is stable on pnpm 11.x.
+#
+# The runner stage copies the full /app from build. tsconfig,
+# biome.json, pnpm-lock.yaml and other build-only files come along
+# but cost ~zero compared to the symlinked node_modules. Trying
+# targeted COPYs (apps/api + packages + node_modules separately)
+# broke pnpm's workspace symlinks — `tsx` and the @app/* workspace
+# deps resolved from the wrong paths. Single COPY keeps the
+# symlink graph intact.
 
 ARG NODE_VERSION=24-alpine
 
@@ -43,20 +54,7 @@ COPY apps/api ./apps/api
 RUN pnpm --filter @app/db generate
 RUN pnpm --filter @app/api build
 
-# ---- prod-deps ---------------------------------------------------------
-# Re-install prod-only deps into a clean tree. Drop devDeps
-# (typescript, vitest, @biomejs/biome, @types/*) so the runner image
-# only ships what the api needs at runtime + pnpm for the
-# `migrate:deploy` entrypoint.
-FROM base AS prod-deps
-COPY --from=build /app /app
-RUN pnpm install --filter @app/api... --offline --frozen-lockfile --prod --ignore-scripts && \
-    pnpm store prune
-
 # ---- runner ------------------------------------------------------------
-# Targeted COPY: only the paths the api needs at runtime. Skips
-# tsconfig, biome.json, pnpm-lock.yaml, biome config, and any source
-# files from packages not consumed at runtime.
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 ENV CI=true \
@@ -65,18 +63,22 @@ ENV CI=true \
     PATH=/pnpm:$PATH \
     PORT=8080
 RUN corepack enable pnpm
-RUN addgroup -g 1001 -S nodejs && adduser -S api -u 1001 -G nodejs
+RUN addgroup -g 1001 -S nodejs && adduser -S api -u 1001 -G nodejs \
+    && mkdir -p /home/api/.cache/node/corepack /home/api/.local/share/pnpm \
+    && chown -R api:nodejs /home/api
 
-COPY --from=prod-deps --chown=api:nodejs /app/apps/api /app/apps/api
-COPY --from=prod-deps --chown=api:nodejs /app/packages /app/packages
-COPY --from=prod-deps --chown=api:nodejs /app/pnpm-workspace.yaml /app/
-COPY --from=prod-deps --chown=api:nodejs /app/node_modules /app/node_modules
+COPY --from=build --chown=api:nodejs /app /app
+
+# WORKDIR creates /app as root. pnpm 11.12 writes config temp files in
+# the cwd during `migrate:deploy` (and any other workspace command);
+# `chown` the parent so the api user can write there.
+RUN chown api:nodejs /app
 
 USER api
 WORKDIR /app/apps/api
 EXPOSE 8080
 ENTRYPOINT ["/app/apps/api/docker-entrypoint.sh"]
-# Run via tsx (in /app/node_modules from the prod-deps stage via the
-# root @types hoisted path) so source stays un-transpiled. `--import`
-# (not the `tsx` CLI) keeps PATH stable for the entrypoint.
+# Run via tsx (in /app/node_modules from the build stage) so source
+# stays un-transpiled. `--import` (not the `tsx` CLI) keeps PATH
+# stable for the entrypoint.
 CMD ["node", "--import", "tsx", "src/index.ts"]

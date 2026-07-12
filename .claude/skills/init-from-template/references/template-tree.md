@@ -145,7 +145,7 @@ web-project-template/
   "node": ">=24",
   "pnpm": ">=11"
 },
-"packageManager": "pnpm@11.10.0"
+"packageManager": "pnpm@11.12.0"
 ```
 
 ## Root devDependencies (hoisted)
@@ -197,8 +197,8 @@ Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. O
 | Workflow step | Pin |
 | --- | --- |
 | `actions/checkout` | `@v6` |
-| `actions/setup-node` | `@v5` |
-| `pnpm/action-setup` | `@v4` |
+| `actions/setup-node` | `@v6` |
+| `pnpm/action-setup` | `@v6` |
 | `dorny/paths-filter` | `@v4` |
 | `cycjimmy/semantic-release-action` | `@v6` |
 | `docker/setup-buildx-action` | `@v4` |

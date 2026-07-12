@@ -5,6 +5,12 @@ on:
     types: [opened, synchronize, reopened]
     branches: ['**']
 
+# amannn/action-semantic-pull-request needs pull-requests: read to fetch
+# the PR title and metadata. Without it: "Resource not accessible by
+# integration" on every PR.
+permissions:
+  pull-requests: read
+
 jobs:
   semantic-pull-request:
     runs-on: ubuntu-latest
@@ -34,6 +40,9 @@ jobs:
 
   commit-messages:
     runs-on: ubuntu-latest
+    # gsactions/commit-message-checker needs to read commit history.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
         with:
@@ -44,9 +53,11 @@ jobs:
           pattern: '(?:build|style|docs|doc|refactor|test|fix|perf|chore|feat|ci|revert)(?:\(.+\))?:\s[a-zA-Z].+'
           flags: 'g'
           excludeDescription: true
-          excludeTitlePattern: '^Merge\b'
+          # v2 renamed this input: was `excludeTitlePattern`, now `excludeTitle`.
+          excludeTitle: '^Merge\b'
           checkAllCommitMessages: true
-          errorMessage: |
+          # v2 renamed this input: was `errorMessage`, now `error`.
+          error: |
             All commit messages must follow Conventional Commits.
             Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
             Required format: type(scope): subject

@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Validate branch name
-        uses: deepakputhraya/action-branch-name@v2
+        uses: deepakputhraya/action-branch-name@master
         with:
           regex: '^(feature|fix|chore|docs|feat|build|ci|test|refactor|perf|style|dependabot)\/.+$'
           allowed_prefixes: 'feature,fix,chore,docs,feat,build,ci,test,refactor,perf,style,dependabot'
