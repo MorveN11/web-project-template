@@ -124,10 +124,7 @@ export class ApiClient {
     // Dev-only request tracing. No token, no body — only metadata. The
     // logger is a no-op in prod (see ./logger.ts), so this carries zero
     // prod cost.
-    logger.debug(
-      { method, path, hasAuth: Boolean(token), hasBody: body !== undefined },
-      'api:request',
-    );
+    logger.debug({ method, path, hasAuth: Boolean(token), hasBody: body !== undefined }, 'api:request');
     const startedAt = Date.now();
 
     // Cache default = no-store (api responses are per-user, never
