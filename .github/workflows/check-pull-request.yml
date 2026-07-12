@@ -27,24 +27,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Title must follow Conventional Commits.
-          types: |
-            feat
-            fix
-            docs
-            style
-            refactor
-            perf
-            test
-            build
-            ci
-            chore
-            revert
-          requireScope: false
-          subjectPattern: '^([^()]+)(?:\(([^()]+)\))?:\s.+$'
-          subjectPatternError: |
-            Subject does not match Conventional Commits. Expected:
-              type(scope): subject
+          # Use the action's default subjectPattern (covers Conventional
+          # Commits edge cases better than a hand-rolled regex). Defaults:
+          #   - requireScope: true (scope required)
+          #   - subjectPattern: a built-in regex
+          # If you need a custom regex, override `subjectPattern` here.
+          # `validateSingleCommit: false` makes the action validate the
+          # PR title (and the range of commits in the PR), not a single
+          # commit subject.
+          validateSingleCommit: false
 
   commit-messages:
     runs-on: ubuntu-latest
