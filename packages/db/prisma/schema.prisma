@@ -31,24 +31,8 @@ model User {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  items Item[]
-
   @@index([clerkId])
   @@map("users")
-}
-
-model Item {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  ownerId     String
-  owner       User     @relation(fields: [ownerId], references: [clerkId], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([ownerId])
-  @@index([createdAt])
-  @@map("items")
 }
 
 // Two roles: ADMIN (full access, can create users via the api) and

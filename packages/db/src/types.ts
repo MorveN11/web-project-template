@@ -1,6 +1,6 @@
 // Type re-exports. The web imports from here so generated Prisma types
-// (User, Item, Role, etc.) flow across the monorepo without bundling
-// the PrismaClient runtime into the browser.
+// (User, Role, etc.) flow across the monorepo without bundling the
+// PrismaClient runtime into the browser.
 //
 // The `Prisma` value namespace is exported separately from ./index so
 // consumers can do `import { Prisma } from '@app/db'` for hooks like
@@ -10,6 +10,6 @@
 
 import type { PrismaClient } from '@prisma/client';
 
-export type { Item, Role, User } from '@prisma/client';
+export type { Role, User } from '@prisma/client';
 
 export type Database = PrismaClient;

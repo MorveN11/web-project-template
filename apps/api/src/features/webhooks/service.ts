@@ -64,9 +64,9 @@ export class UserWebhookService {
     return 'updated';
   }
 
-  // `user.deleted` — soft-delete in the local table. The Item
-  // relation cascades via `onDelete: Cascade` only on hard-delete,
-  // so a soft-delete keeps history queryable for audit.
+  // `user.deleted` — soft-delete in the local table. Hard deletes
+  // would cascade to any future relations, but a soft-delete keeps
+  // history queryable for audit.
   async handleDeleted(userId: string): Promise<WebhookOutcome> {
     const existing = await this.users.findByClerkId(userId);
     if (!existing) return 'noop';

@@ -8,4 +8,4 @@
 
 export { Prisma } from '@prisma/client';
 export { database } from './client';
-export type { Database, Item, Role, User } from './types';
+export type { Database, Role, User } from './types';

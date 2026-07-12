@@ -21,6 +21,7 @@
 // higher-level helper.
 
 import { env } from './env/client';
+import { logger } from './logger';
 
 export class ApiError extends Error {
   constructor(
@@ -120,6 +121,15 @@ export class ApiClient {
       ...(Object.fromEntries(new Headers(options.headers ?? {})) as Record<string, string>),
     };
 
+    // Dev-only request tracing. No token, no body — only metadata. The
+    // logger is a no-op in prod (see ./logger.ts), so this carries zero
+    // prod cost.
+    logger.debug(
+      { method, path, hasAuth: Boolean(token), hasBody: body !== undefined },
+      'api:request',
+    );
+    const startedAt = Date.now();
+
     // Cache default = no-store (api responses are per-user, never
     // shared). Override via `options.cache` if you really need it.
     const res = await fetch(url, {
@@ -130,10 +140,16 @@ export class ApiClient {
       credentials: 'include',
     });
 
+    const durationMs = Date.now() - startedAt;
+
     if (!res.ok) {
       const problem = await res.json().catch(() => null);
-      throw new ApiError(res.status, problem?.error?.code ?? res.statusText, problem?.error?.message);
+      const title = problem?.error?.code ?? res.statusText;
+      logger.warn({ method, path, status: res.status, durationMs, title }, 'api:error');
+      throw new ApiError(res.status, title, problem?.error?.message);
     }
+
+    logger.debug({ method, path, status: res.status, durationMs }, 'api:response');
 
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;

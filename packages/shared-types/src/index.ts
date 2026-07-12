@@ -2,7 +2,7 @@
 //
 //   cross-cutting/   concerns used by ≥ 2 features (error envelope,
 //                    pagination, etc.)
-//   features/       per-domain DTOs (item, user, ...)
+//   features/       per-domain DTOs (user, ...)
 //
 // Each leaf file owns BOTH the zod schema and the inferred TS type
 // for its concern, plus a top-of-file comment explaining the wire
@@ -14,12 +14,10 @@
 //
 // Public surface (stable):
 //   apiErrorSchema, ApiErrorBody
-//   itemDtoSchema, ItemDto
 //   paginationResponseSchema(), PaginationResponse<T>
 //   UserRole, userRoleSchema, UserRoleType
 
 export { type ApiErrorBody, apiErrorSchema } from './cross-cutting/api-error';
 export { type PaginationResponse, paginationResponseSchema } from './cross-cutting/pagination';
 
-export { type ItemDto, itemDtoSchema } from './features/item';
 export { UserRole, type UserRole as UserRoleType, userRoleSchema } from './features/user';

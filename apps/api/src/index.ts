@@ -12,7 +12,6 @@ import { attachPrismaLogging } from './db/prisma-logging';
 import { devRoutes } from './dev';
 import { env } from './env';
 import { healthRoutes } from './features/health';
-import { itemRoutes } from './features/items';
 import { userRoutes } from './features/users';
 import { handleClerkWebhook } from './features/webhooks';
 import { logger, withRequest } from './logger';
@@ -128,9 +127,8 @@ if (env.NODE_ENV !== 'production') {
 }
 
 // Business endpoints. No version prefix — each feature router owns its
-// own auth gate (see apps/api/src/items/routes.ts). Adding /v2 later
-// means a per-router flag, not a global prefix migration.
-app.route('/items', itemRoutes);
+// own auth gate. Adding /v2 later means a per-router flag, not a
+// global prefix migration.
 app.route('/users', userRoutes);
 
 app.notFound((c) => c.json({ error: { code: 'not_found', message: 'no route' } }, 404));

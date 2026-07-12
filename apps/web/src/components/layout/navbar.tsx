@@ -6,7 +6,7 @@ export async function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
       <nav className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
+        <Link href="/" className="text-lg font-semibold tracking-tight">
           Web Project Template
         </Link>
         <div className="flex items-center gap-3">
