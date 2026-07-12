@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
+import { UserRole } from '@app/shared-types';
 import { redirect } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { Navbar } from '@/components/layout/navbar';
 import { getCurrentSession } from '@/features/auth';
-import { UserRole } from '@app/shared-types';
 
 interface Props {
   children: ReactNode;

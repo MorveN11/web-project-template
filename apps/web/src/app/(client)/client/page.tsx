@@ -15,22 +15,16 @@ export default async function ClientHomePage() {
       </p>
 
       <div className="mt-6 rounded-md border p-4">
-        <h3 className="text-sm font-semibold text-muted-foreground">
-          Guards demo
-        </h3>
+        <h3 className="text-sm font-semibold text-muted-foreground">Guards demo</h3>
         <IfRole role={UserRole.CLIENT}>
-          <p className="mt-2 font-mono text-sm text-green-600">
-            ✅ &lt;IfRole role=CLIENT&gt; matched
-          </p>
+          <p className="mt-2 font-mono text-sm text-green-600">✅ &lt;IfRole role=CLIENT&gt; matched</p>
         </IfRole>
       </div>
 
       <div className="mt-4 rounded-md border p-4">
         <p className="text-sm">ADMIN-only content below:</p>
         <RequireRole role={UserRole.ADMIN} fallback={null}>
-          <p className="mt-2 font-mono text-sm text-red-600">
-            ❌ (should not render — fallback is null)
-          </p>
+          <p className="mt-2 font-mono text-sm text-red-600">❌ (should not render — fallback is null)</p>
         </RequireRole>
       </div>
     </section>

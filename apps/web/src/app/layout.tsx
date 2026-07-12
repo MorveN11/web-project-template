@@ -31,24 +31,7 @@ export default async function RootLayout({ children }: Props) {
   return (
     <html lang="es" suppressHydrationWarning>
       <body>
-        <Providers>
-          {session ? (
-            <RoleProvider
-              value={{
-                userId: session.clerkId,
-                email: session.email,
-                firstName: session.firstName,
-                lastName: session.lastName,
-                imageUrl: null,
-                role: session.role,
-              }}
-            >
-              {children}
-            </RoleProvider>
-          ) : (
-            children
-          )}
-        </Providers>
+        <Providers>{session ? <RoleProvider value={session}>{children}</RoleProvider> : children}</Providers>
       </body>
     </html>
   );

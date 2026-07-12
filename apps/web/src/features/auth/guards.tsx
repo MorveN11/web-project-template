@@ -15,8 +15,8 @@
 // `getCurrentSession({ redirectIfNotFound: false })`. No effect on
 // the api's role middleware; these are purely UI gates.
 
-import type { ReactNode } from 'react';
 import type { UserRole } from '@app/shared-types';
+import type { ReactNode } from 'react';
 import { getCurrentSession } from './actions';
 
 interface Props {

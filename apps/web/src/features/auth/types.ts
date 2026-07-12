@@ -13,5 +13,6 @@ export interface UserSession {
   firstName: string;
   lastName: string;
   email: string;
+  imageUrl: string | null;
   role: import('@app/shared-types').UserRole;
 }

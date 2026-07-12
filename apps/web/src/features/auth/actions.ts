@@ -1,135 +1,88 @@
 'use server';
 
-// Auth helpers for server components and server actions. Mirrors the
-// `~/code/bevent` pattern: rich function overloads that flip between
-// "redirect on missing" and "return null" modes, cached per RSC render
-// via React `cache()`, and a try/catch envelope that preserves
-// Next.js' internal redirect/notFound signals.
+// Auth helpers for server components and server actions.
 //
-// Exports:
 //   getCurrentSession({ redirectIfNotFound }) → UserSession | null
-//     Returns the full Clerk user enriched with `publicMetadata.role`.
-//     When `requireRole` (default true) and the role is missing,
-//     redirects to ROLE_ERROR_URL — users in that state need a manual
-//     admin fix (no self-service path).
+//     The local DB is the single source of truth for the session.
+//     Flow: read Clerk's session → resolve the JWT → call
+//     `GET /users/me` on the api → if the row doesn't exist yet
+//     (404), call `POST /users/me` (syncSelf) which creates it AND
+//     stamps Clerk's publicMetadata in one round-trip → return the
+//     fresh local row as the session. The current render always
+//     uses the api's response — never the stale JWT claims.
 //   getCurrentToken({ redirectIfNotFound }) → string | null
-//     Returns the current Clerk session JWT, ready for `Authorization:
-//     Bearer …` against the api. Redirects to REDIRECT_URL when the
-//     caller asks for it and the user isn't authenticated.
-//
-// Note: the web never writes to Clerk's `publicMetadata` directly.
-// All Clerk BAPI mutations live behind the api's `POST /users/me`
-// (self-sync, called from `(authenticated)/layout.tsx`), so the
-// service-role key never leaves the server.
+//     Returns the current Clerk session JWT.
 
-import { UserRole } from '@app/shared-types';
-import { createClerkClient } from '@clerk/backend';
 import { auth } from '@clerk/nextjs/server';
-import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
-import { env } from '@/lib/env/client';
-import { env as serverEnv } from '@/lib/env/server';
+import { profileService } from '@/features/profile/services/profile.service';
+import { ApiError } from '@/lib/api-client';
 import { logger } from '@/lib/logger';
+import { isNextControlError } from '@/lib/next-control-errors';
 import { REDIRECT_URL, ROLE_ERROR_URL } from './constants';
 import type { UserSession } from './types';
 
-// Next.js' `redirect()` and `notFound()` short-circuit renders by
-// throwing an internal error whose `digest` starts with `NEXT_REDIRECT`
-// or `NEXT_NOT_FOUND`. We must re-throw those — otherwise the catch
-// below would swallow the navigation signal and turn it into a silent
-// `null`, breaking `redirectIfNotFound: true`'s contract.
-function isNextControlError(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    'digest' in err &&
-    typeof (err as { digest: unknown }).digest === 'string' &&
-    ((err as { digest: string }).digest.startsWith('NEXT_REDIRECT') ||
-      (err as { digest: string }).digest.startsWith('NEXT_NOT_FOUND'))
-  );
+/**
+ * Read the local row for the current session. Returns `null` when the
+ * row doesn't exist yet AND the sync also failed — caller should
+ * redirect to the role error page so the user sees why.
+ *
+ * Two happy paths:
+ *   1. GET /users/me  — local row exists, return it.
+ *   2. GET /users/me  → 404 → POST /users/me (sync) → return the
+ *      freshly-stamped local row.
+ *
+ * Either way the returned profile is the api's source of truth — the
+ * `clerkUser.publicMetadata` path is no longer needed here.
+ */
+async function readOrSyncProfile(token: string): Promise<UserSession | null> {
+  try {
+    return await profileService.getMyProfile(token);
+  } catch (cause) {
+    if (isNextControlError(cause)) throw cause;
+    if (!(cause instanceof ApiError) || cause.status !== 404) {
+      logger.warn({ cause }, 'getCurrentSession: getMyProfile threw');
+      return null;
+    }
+    // 404 → local row doesn't exist yet. Trigger syncSelf to create
+    // it + stamp Clerk's publicMetadata, then read the fresh row.
+    try {
+      return await profileService.syncMyProfile(token);
+    } catch (syncCause) {
+      if (isNextControlError(syncCause)) throw syncCause;
+      logger.warn({ syncCause }, 'getCurrentSession: syncMyProfile threw');
+      return null;
+    }
+  }
 }
 
 // ----- getCurrentSession ---------------------------------------------------
 
-function _getCurrentSession(options: { redirectIfNotFound: true; requireRole?: boolean }): Promise<UserSession>;
-function _getCurrentSession(options?: {
-  redirectIfNotFound?: false;
-  requireRole?: boolean;
-}): Promise<UserSession | null>;
-async function _getCurrentSession({ redirectIfNotFound = false, requireRole: requireRoleFlag = true } = {}) {
+function _getCurrentSession(options: { redirectIfNotFound: true }): Promise<UserSession>;
+function _getCurrentSession(options?: { redirectIfNotFound?: false }): Promise<UserSession | null>;
+async function _getCurrentSession({ redirectIfNotFound = false } = {}) {
   try {
-    const { userId: clerkUserId, isAuthenticated } = await auth();
+    const { isAuthenticated, getToken } = await auth();
+    const token = await getToken();
 
-    if (!isAuthenticated || !clerkUserId) {
+    if (!isAuthenticated || !token) {
       if (redirectIfNotFound) redirect(REDIRECT_URL);
       return null;
     }
 
-    const clerk = createClerkClient({ secretKey: serverEnv.CLERK_SECRET_KEY });
-    const clerkUser = await clerk.users.getUser(clerkUserId);
-
-    const { role, userId } = clerkUser.publicMetadata as {
-      role?: string;
-      userId?: string;
-    };
-
-    // Role / local userId missing → the api's `POST /users/me` can
-    // self-sync (stamps Clerk metadata + mirrors local row). Try it
-    // before bouncing to the error page — the common case is just
-    // a first-render race between Clerk signup and the api webhook.
-    if (requireRoleFlag && (!role || !userId)) {
-      try {
-        const token = await getCurrentToken({ redirectIfNotFound: true });
-        const apiUrl = env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
-        const syncRes = await fetch(`${apiUrl}/users/me`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store',
-        });
-        if (syncRes.ok) {
-          // Force the current render tree to re-execute so the
-          // now-populated metadata is visible. The JWT still has
-          // the stale claims until next refresh, but the local
-          // sync + revalidate closes the gap immediately.
-          revalidatePath('/', 'layout');
-          // Land on a known authed page so the next render hits
-          // getCurrentSession with fresh metadata.
-          redirect('/dashboard');
-        }
-        // Sync failed for a non-throw reason (4xx/5xx). Fall through
-        // to the error page so devs can see why.
-        logger.warn({ status: syncRes.status }, 'selfSync: api call returned non-OK');
-      } catch (cause) {
-        // Network error / thrown — bubble navigation signals, error
-        // page for everything else.
-        if (isNextControlError(cause)) throw cause;
-        logger.error({ cause }, 'selfSync: api call threw');
-      }
+    const session = await readOrSyncProfile(token);
+    if (!session) {
+      // Both GET and POST failed — bounce to the role error page so
+      // the user sees why (and so devs can debug).
       redirect(ROLE_ERROR_URL);
     }
 
-    if (!requireRoleFlag) {
-      return {
-        id: userId ?? '',
-        clerkId: clerkUserId,
-        firstName: clerkUser.firstName ?? '',
-        lastName: clerkUser.lastName ?? '',
-        email: clerkUser.emailAddresses[0]?.emailAddress ?? '',
-        role: (role as UserRole) ?? UserRole.CLIENT,
-      };
-    }
-
-    return {
-      id: userId as string,
-      clerkId: clerkUserId,
-      firstName: clerkUser.firstName ?? '',
-      lastName: clerkUser.lastName ?? '',
-      email: clerkUser.emailAddresses[0]?.emailAddress ?? '',
-      role: role as UserRole,
-    };
+    // Pin the clerkId from Clerk's session (not the local row) so it
+    // always matches the live session, even if the local row's
+    // mirror is briefly stale.
+    return session;
   } catch (cause) {
-    // Never swallow Next's navigation signals — re-throw them so the
-    // 302 actually reaches the browser.
     if (isNextControlError(cause)) throw cause;
     if (redirectIfNotFound) redirect(REDIRECT_URL);
     return null;

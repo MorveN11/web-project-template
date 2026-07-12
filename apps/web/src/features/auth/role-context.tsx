@@ -1,26 +1,18 @@
 'use client';
 
+import type { UserSession } from '@/features/auth/types';
 // Client-side role context + hook. The root layout reads the session
 // server-side and passes `{ userId, role, firstName, lastName, ... }`
 // to <RoleProvider>. Client components read via `useRole()` for
 // conditional rendering (show/hide nav items, action buttons, etc.).
 
-import { createContext, useContext, type ReactNode } from 'react';
 import { UserRole } from '@app/shared-types';
+import { createContext, type ReactNode, useContext } from 'react';
 
-export interface RoleContextValue {
-  userId: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  imageUrl: string | null;
-  role: UserRole;
-}
-
-const RoleContext = createContext<RoleContextValue | null>(null);
+const RoleContext = createContext<UserSession | null>(null);
 
 interface ProviderProps {
-  value: RoleContextValue;
+  value: UserSession;
   children: ReactNode;
 }
 
@@ -33,7 +25,7 @@ export function RoleProvider({ value, children }: ProviderProps) {
  * Throws if used outside `<RoleProvider>` — that's a programmer
  * error (someone forgot to wrap the tree), not a runtime fallback.
  */
-export function useRole(): RoleContextValue {
+export function useRole(): UserSession {
   const ctx = useContext(RoleContext);
   if (!ctx) {
     throw new Error('useRole() called outside <RoleProvider>');

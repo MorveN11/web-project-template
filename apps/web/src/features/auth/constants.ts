@@ -2,7 +2,9 @@
 // separate file so feature-specific code can import them without
 // pulling the whole auth surface.
 
-export const REDIRECT_URL = '/auth/iniciar-sesion';
+import { env } from '@/lib/env/client';
+
+export const REDIRECT_URL = env.NEXT_PUBLIC_CLERK_SIGN_IN_URL;
 // Destination when a user signs in but their role hasn't been set
 // yet (e.g. webhook race, migration glitch, Clerk BAPI outage). Devs
 // manually resolve these by setting the role via the api admin

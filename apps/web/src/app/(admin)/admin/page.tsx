@@ -16,26 +16,19 @@ export default async function AdminHomePage() {
       </p>
 
       <div className="mt-6 rounded-md border p-4">
-        <h3 className="text-sm font-semibold text-muted-foreground">
-          Guards demo
-        </h3>
+        <h3 className="text-sm font-semibold text-muted-foreground">Guards demo</h3>
         <p className="mt-2 text-sm">
-          The following block is only visible because the server-side
-          guard confirmed your role:
+          The following block is only visible because the server-side guard confirmed your role:
         </p>
         <IfRole role={UserRole.ADMIN}>
-          <p className="mt-2 font-mono text-sm text-green-600">
-            ✅ &lt;IfRole role=ADMIN&gt; matched
-          </p>
+          <p className="mt-2 font-mono text-sm text-green-600">✅ &lt;IfRole role=ADMIN&gt; matched</p>
         </IfRole>
       </div>
 
       <div className="mt-4 rounded-md border p-4">
         <p className="text-sm">Hidden CLIENT-only content below:</p>
         <RequireRole role={UserRole.CLIENT} fallback={null}>
-          <p className="mt-2 font-mono text-sm text-red-600">
-            ❌ (should not render — fallback is null)
-          </p>
+          <p className="mt-2 font-mono text-sm text-red-600">❌ (should not render — fallback is null)</p>
         </RequireRole>
       </div>
     </section>

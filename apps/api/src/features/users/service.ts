@@ -26,9 +26,12 @@ export class UserService {
 
   // GET /me — read the local row for the caller. 404 if the row
   // hasn't been mirrored yet (call POST /me first).
-  async getByClerkId(clerkId: string): Promise<Result<UserDto>> {
-    const row = await this.users.findByClerkId(clerkId);
-    if (!row) return err(errNotFound(`no local user row for clerkId ${clerkId}`));
+  async getByClerkId(auth: ClerkAuthContext): Promise<Result<UserDto>> {
+    const row = await this.users.findByClerkId(auth.userId);
+    if (!row) return err(errNotFound(`no local user row for clerkId ${auth.userId}`));
+    if (!row.role || row.role !== auth.role) {
+      return this.syncSelf(auth); // role changed on Clerk — update local row + stamp Clerk
+    }
     return ok(toUserDto(row));
   }
 
@@ -98,6 +101,11 @@ export class UserService {
       const lastName = clerkUser.lastName ?? '';
       const imageUrl = clerkUser.imageUrl ?? null;
 
+      const currentMeta = (clerkUser.publicMetadata ?? {}) as {
+        role?: string;
+        userId?: string;
+      };
+
       // Step 1 — find or create the local row. We need `row.id`
       // before we can stamp Clerk with the right `userId`.
       const existing = await this.users.findByClerkId(auth.userId);
@@ -108,7 +116,7 @@ export class UserService {
             firstName,
             lastName,
             imageUrl,
-            role: existing.role as UserRole, // preserve — admin-only writes
+            role: (currentMeta.role as UserRole | undefined) ?? (existing.role as UserRole), // preserve — admin-only writes
           })
         : await this.users.create({
             clerkId: auth.userId,
@@ -116,16 +124,12 @@ export class UserService {
             firstName,
             lastName,
             imageUrl,
-            role: UserRole.CLIENT,
+            role: (currentMeta.role as UserRole | undefined) ?? UserRole.CLIENT, // default to CLIENT
           });
 
       // Step 2 — stamp Clerk metadata with the local id + current role.
       // Read the current publicMetadata and only write when it differs
       // (avoids pointless BAPI traffic + audit-log noise on every render).
-      const currentMeta = (clerkUser.publicMetadata ?? {}) as {
-        role?: string;
-        userId?: string;
-      };
       const needsStamp = currentMeta.role !== row.role || currentMeta.userId !== row.id;
 
       if (needsStamp) {

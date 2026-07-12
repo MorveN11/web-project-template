@@ -24,13 +24,12 @@ export {
   getCurrentSession,
   getCurrentToken,
 } from './actions';
-export { RequireRole, IfRole } from './guards';
+export { REDIRECT_URL, ROLE_ERROR_URL } from './constants';
+export { IfRole, RequireRole } from './guards';
 export {
   RoleProvider,
-  useRole,
   useIsAdmin,
   useIsClient,
-  type RoleContextValue,
+  useRole,
 } from './role-context';
 export { UserRole, type UserSession } from './types';
-export { REDIRECT_URL, ROLE_ERROR_URL } from './constants';

@@ -73,7 +73,7 @@ usersSelf.use('*', requireAuth);
 usersSelf
   .openapi(getMeRoute, async (c) => {
     const auth = getAuth(c);
-    return handleResult(await service.getByClerkId(auth.userId), c);
+    return handleResult(await service.getByClerkId(auth), c);
   })
   .openapi(syncSelfRoute, async (c) => {
     const auth = getAuth(c);

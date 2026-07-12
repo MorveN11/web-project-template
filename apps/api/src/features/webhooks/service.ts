@@ -50,6 +50,7 @@ export class UserWebhookService {
     const lastName = user.last_name ?? existing.lastName;
     const email = user.email_addresses[0]?.email_address ?? existing.email;
     const imageUrl = user.image_url ?? existing.imageUrl ?? null;
+    const { role } = user.public_metadata ?? {};
 
     await this.users.upsert({
       clerkId: user.id,
@@ -57,12 +58,9 @@ export class UserWebhookService {
       firstName,
       lastName,
       imageUrl,
-      role: existing.role as UserRole,
+      role: (role as UserRole) ?? existing.role,
     });
-    logger.info(
-      { clerkId: user.id, imageChanged: imageUrl !== existing.imageUrl },
-      'webhook: user updated',
-    );
+    logger.info({ clerkId: user.id, imageChanged: imageUrl !== existing.imageUrl }, 'webhook: user updated');
     return 'updated';
   }
 
