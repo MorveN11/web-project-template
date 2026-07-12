@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "Minimal web project template. Hono + Prisma + Postgres API, Next.js + shadcn + Clerk web, pnpm workspaces. Extend with features as the project grows.",
-  "packageManager": "pnpm@11.12.0",
+  "packageManager": "pnpm@11.10.0",
   "engines": {
     "node": ">=24",
     "pnpm": ">=11"

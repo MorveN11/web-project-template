@@ -145,7 +145,7 @@ web-project-template/
   "node": ">=24",
   "pnpm": ">=11"
 },
-"packageManager": "pnpm@11.12.0"
+"packageManager": "pnpm@11.10.0"
 ```
 
 ## Root devDependencies (hoisted)
