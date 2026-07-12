@@ -7,7 +7,15 @@ on:
 
 # amannn/action-semantic-pull-request needs pull-requests: read to fetch
 # the PR title and metadata. Without it: "Resource not accessible by
-# integration" on every PR.
+# integration" on every PR
+
+# IMPORTANT: this workflow assumes the repo's merge strategy is set to
+# Squash or Rebase only (Allow merge commits: OFF). See CONTRIBUTING.md
+# § 1 "Repo settings" for the full rationale. If you re-enable merge
+# commits in repo Settings, every PR with a merge in its history will
+# fail the commit-messages check (gsactions's `excludeTitle` only
+# applies to the PR title, not to individual commit messages).
+
 permissions:
   pull-requests: read
 
@@ -56,6 +64,12 @@ jobs:
           flags: 'g'
           excludeDescription: true
           # v2 renamed this input: was `excludeTitlePattern`, now `excludeTitle`.
+          # This is a defense-in-depth net — the merge strategy is
+          # configured in repo Settings to disallow merge commits (see
+          # CONTRIBUTING.md § 1 "Repo settings"), so the history should
+          # never contain "Merge …" commits. If it does (e.g. someone
+          # re-enabled merge commits in the repo), this exclude keeps
+          # the check from failing on them.
           excludeTitle: '^Merge\b'
           checkAllCommitMessages: true
           # v2 requires an explicit accessToken when checkAllCommitMessages

@@ -32,7 +32,18 @@ jobs:
 
   pr-check:
     needs: changes
-    if: needs.changes.outputs.any == 'true'
+    # Run pr-check when any meaningful filter matched. References the
+    # filter outputs directly (not a synthetic `any` shortcut) so the
+    # trigger is explicit: a change in api, web, shared, config, or
+    # ci surfaces. Pure docs changes (README, docs/, *.md outside
+    # .github/) don't trigger pr-check because none of the patterns
+    # match them.
+    if: |
+      needs.changes.outputs.api == 'true' ||
+      needs.changes.outputs.web == 'true' ||
+      needs.changes.outputs.shared == 'true' ||
+      needs.changes.outputs.config == 'true' ||
+      needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
