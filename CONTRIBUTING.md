@@ -80,6 +80,20 @@ To validate the closest-to-production model locally:
 pnpm compose:prod        # full stack via local Dockerfiles
 ```
 
+### Repo settings (one-time, after fork)
+
+In **Settings → General → Pull Requests**, configure the merge strategy so Conventional Commits validation stays enforceable end-to-end:
+
+| Setting | Required value | Why |
+| --- | --- | --- |
+| **Allow merge commits** | OFF | Merging produces "Merge branch 'X' into Y" commits. These fail `gsactions/commit-message-checker`'s regex (no `type(scope):` prefix). Disabling them keeps the history Conventional-Commits-pure. |
+| **Allow squash merging** | ON (default commit message = PR title) | Squash collapses the PR into a single commit whose subject is the PR title — which is already validated by `amannn/action-semantic-pull-request`. |
+| **Allow rebase merging** | ON (optional) | Linear history, no merge commit. |
+| **Always suggest updating pull request branches** | ON | Keeps feature branches current. |
+| **Automatically delete head branches** | ON | Cleanup after merge. |
+
+The workflow `check-pull-request.yml` uses `gsactions/commit-message-checker@v2`'s `excludeTitle: '^Merge\b'` to skip any merge commits that slip through. With the merge strategy set as above, no merge commits exist and the `excludeTitle` is a defense-in-depth net, not a workaround.
+
 ---
 
 ## 2. Gitflow

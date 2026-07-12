@@ -1,6 +1,11 @@
 # Path-based matrix used by release.yml + ci.yml's `changes` job to know
 # which services changed. Only `api` and `web` are consumed by workflows;
 # the other keys are kept for documentation and future ad-hoc scripts.
+#
+# ci.yml's `pr-check` job references these outputs directly (not via
+# a synthetic `any`) so the trigger is explicit: it runs when api,
+# web, shared,config, or ci filter matches. Pure docs changes (README,
+# docs/, *.md outside .github/) don't trigger pr-check.
 
 api:
   - "apps/api/**"
