@@ -3,7 +3,7 @@
 // imports types only (see src/types.ts + src/index.ts re-exports).
 
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { type Prisma, PrismaClient } from '@prisma/client';
 
 // The `log` array pins the second generic on PrismaClient (U). That generic
 // is what `$on<V extends U>` narrows on, and `attachPrismaLogging` needs it

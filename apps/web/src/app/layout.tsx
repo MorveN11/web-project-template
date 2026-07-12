@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 
 import { Providers } from './providers';
 import './globals.css';
+import { RoleProvider } from '@/features/auth';
+import { getCurrentSession } from '@/features/auth/actions';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 const merriweather = Merriweather({ subsets: ['latin'], variable: '--font-serif' });
@@ -28,6 +30,12 @@ interface Props {
 }
 
 export default async function RootLayout({ children }: Props) {
+  // Read the session server-side so the entire tree can call
+  // `useRole()` from client components without re-fetching. `null`
+  // when not signed in — client hooks should not be reachable on
+  // unauthenticated routes, but we pass `null` instead of crashing.
+  const session = await getCurrentSession({ redirectIfNotFound: false });
+
   return (
     <html
       lang="es"
@@ -37,7 +45,7 @@ export default async function RootLayout({ children }: Props) {
       <body className="flex min-h-screen flex-col">
         <Providers>
           <Navbar />
-          <main className="flex-1">{children}</main>
+          <main className="flex-1">{session ? <RoleProvider value={session}>{children}</RoleProvider> : children}</main>
         </Providers>
       </body>
     </html>

@@ -1,7 +1,5 @@
 {
   "name": "@app/db",
-  "private": true,
-  "version": "0.0.0",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -13,9 +11,12 @@
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:reset": "prisma migrate reset",
-    "format": "prisma format",
     "studio": "prisma studio",
     "seed": "prisma db seed",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome check --write . && prisma format",
+    "check": "biome check .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -25,10 +26,7 @@
     "pg": "^8.22.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
     "@types/pg": "^8.20.0",
-    "prisma": "7.8.0",
-    "tsx": "^4.23.0",
-    "typescript": "^5.9.3"
+    "prisma": "7.8.0"
   }
 }

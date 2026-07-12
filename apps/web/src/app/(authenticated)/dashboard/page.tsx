@@ -22,6 +22,8 @@ export default async function DashboardPage() {
           <Image
             src={session.imageUrl}
             alt={`${session.firstName} ${session.lastName}`}
+            width={64}
+            height={64}
             className="size-16 rounded-full border bg-muted object-cover"
           />
         ) : (

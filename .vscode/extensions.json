@@ -1,6 +1,6 @@
 {
   "recommendations": [
-    "fronterior.biome-monorepo",
+    "biomejs.biome",
     "editorconfig.editorconfig",
     "bradlc.vscode-tailwindcss",
     "ms-playwright.playwright",
@@ -9,6 +9,7 @@
   ],
   "unwantedRecommendations": [
     "dbaeumer.vscode-eslint",
-    "esbenp.prettier-vscode"
+    "esbenp.prettier-vscode",
+    "fronterior.biome-monorepo"
   ]
 }

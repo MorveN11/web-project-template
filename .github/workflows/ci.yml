@@ -42,6 +42,8 @@ jobs:
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      - name: Check
+        run: pnpm check
       - name: Typecheck
         run: pnpm typecheck
       - name: Unit tests
