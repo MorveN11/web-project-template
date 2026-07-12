@@ -12,6 +12,13 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    # dorny/paths-filter needs contents: read to call the GitHub API for
+    # the changed files list. Without it: "Resource not accessible by
+    # integration" on every PR (especially on PRs from forks where
+    # the default GITHUB_TOKEN is read-only).
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       api: ${{ steps.filter.outputs.api }}
       web: ${{ steps.filter.outputs.web }}

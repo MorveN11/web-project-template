@@ -18,4 +18,3 @@ jobs:
           ignore: 'main,test,dev'
           min_length: 4
           max_length: 120
-          help_text: 'Branch must match conventional prefixes: feature/, fix/, feat/, chore/, docs/, build/, ci/, test/, refactor/, perf/, style/, dependabot/'

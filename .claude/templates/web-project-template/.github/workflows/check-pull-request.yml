@@ -40,9 +40,11 @@ jobs:
 
   commit-messages:
     runs-on: ubuntu-latest
-    # gsactions/commit-message-checker needs to read commit history.
+    # gsactions/commit-message-checker needs contents: read to fetch the
+    # commit history, plus pull-requests: read for PR metadata.
     permissions:
       contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v6
         with:
@@ -56,6 +58,10 @@ jobs:
           # v2 renamed this input: was `excludeTitlePattern`, now `excludeTitle`.
           excludeTitle: '^Merge\b'
           checkAllCommitMessages: true
+          # v2 requires an explicit accessToken when checkAllCommitMessages
+          # is true. Without it: "HttpError: Bad credentials". Pass the
+          # default GITHUB_TOKEN.
+          accessToken: ${{ secrets.GITHUB_TOKEN }}
           # v2 renamed this input: was `errorMessage`, now `error`.
           error: |
             All commit messages must follow Conventional Commits.
