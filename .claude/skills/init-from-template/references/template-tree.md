@@ -206,6 +206,6 @@ Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. O
 | `docker/build-push-action` | `@v7` |
 | `amannn/action-semantic-pull-request` | `@v6` |
 | `gsactions/commit-message-checker` | `@v2` |
-| `deepakputhraya/action-branch-name` | `@v2` |
+| `deepakputhraya/action-branch-name` | `@master` |
 
 Keep this convention when forking. Major-only gives free patch upgrades; full SHAs give reproducibility at the cost of maintenance.
