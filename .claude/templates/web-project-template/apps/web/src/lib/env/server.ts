@@ -10,7 +10,7 @@ import { z } from 'zod';
 
 export const env = createEnv({
   server: {
-    CLERK_SECRET_KEY: z.string().min(1, 'CLERK_SECRET_KEY is required'),
+    CLERK_SECRET_KEY: z.string().min(1, 'CLERK_SECRET_KEY is required').default('sk_test_123'),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   },
   runtimeEnv: {

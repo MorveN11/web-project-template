@@ -11,4 +11,4 @@ import { env } from '@/lib/env/client';
 export const REDIRECT_URL = env.NEXT_PUBLIC_CLERK_SIGN_IN_URL;
 
 /** Page Clerk redirects to after a successful sign-in. */
-export const FALLBACK_REDIRECT_URL = env.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL;
+export const FALLBACK_REDIRECT_URL = '/';
