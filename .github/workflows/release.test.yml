@@ -125,11 +125,6 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_TEST_API_URL }}
           tags: |
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:test
-            # `new_release_version` from cycjimmy/semantic-release-action
-            # already includes the prerelease suffix (e.g. `1.6.1-test.1`)
-            # for the test channel. We append `-build` as a clear,
-            # non-redundant marker of the artifact type — the bare
-            # version tag stays as the source of truth.
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:${{ needs.release.outputs.new_tag }}-build
           cache-from: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:buildcache-test
           cache-to: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:buildcache-test,mode=max
