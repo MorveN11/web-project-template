@@ -123,6 +123,9 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
           tags: |
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:stable
+            # Prod uses the bare `new_release_version` (e.g. `1.0.0`) —
+            # no suffix. The stable channel doesn't need a marker, the
+            # bare semver is the source of truth.
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:${{ needs.release.outputs.new_tag }}
           cache-from: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:buildcache
           cache-to: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:buildcache,mode=max
@@ -133,7 +136,6 @@ jobs:
           DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
           WEBHOOK: ${{ secrets[matrix.service.webhook_secret] }}
           SERVICE: ${{ matrix.service.name }}
-          VERSION: ${{ needs.release.outputs.new_tag }}
         run: |
           if [ -z "$WEBHOOK" ]; then
             echo "::warning::No prod webhook for $SERVICE"
@@ -148,11 +150,17 @@ jobs:
         env:
           NS: ${{ vars.IMAGE_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
           SERVICE: ${{ matrix.service.name }}
-          VERSION: ${{ needs.release.outputs.new_tag }}
+          # Two tags pushed: channel marker (`:stable`) and versioned
+          # artifact (`:<semver>`). Show both. Same env block as test
+          # so the structure stays consistent across release workflows.
+          VERSION_TAG: ${{ needs.release.outputs.new_tag }}
+          CHANNEL_TAG: stable
         run: |
-          echo "## Released \`${SERVICE}@${VERSION}\` (prod)" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Tag | Image |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| \`:stable\` | \`${NS}/${SERVICE}:stable\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| \`:${VERSION}\` | \`${NS}/${SERVICE}:${VERSION}\` |" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Released \`${SERVICE}@${VERSION_TAG}\` (prod)"
+            echo ""
+            echo "| Tag | Image |"
+            echo "| --- | --- |"
+            echo "| \`:${CHANNEL_TAG}\` | \`${NS}/${SERVICE}:${CHANNEL_TAG}\` |"
+            echo "| \`:${VERSION_TAG}\` | \`${NS}/${SERVICE}:${VERSION_TAG}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

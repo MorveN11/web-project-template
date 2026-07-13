@@ -71,7 +71,7 @@ Each branch has its own release workflow with its own semantic-release channel, 
 | Workflow | Trigger | Channel | Tag scheme | Cache | Webhooks fired |
 | --- | --- | --- | --- | --- | --- |
 | `release.prod.yml` | push to `main` | `latest` (stable) | `:stable` + `:<semver>` | `:buildcache` | prod |
-| `release.test.yml` | push to `test` | `test` (prerelease) | `:test` + `:<semver>-test` | `:buildcache-test` | test |
+| `release.test.yml` | push to `test` | `test` (prerelease) | `:test` + `:<semver>-test.N-build` | `:buildcache-test` | test |
 
 Both deploys trigger via `curl -L -X GET --fail-with-body $DOKPLOY_URL/api/deploy/<webhook>` so Dokploy pulls the freshly-pushed tag and redeploys.
 
