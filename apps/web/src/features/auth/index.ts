@@ -12,21 +12,27 @@
 //   useRole()           → UserSession (throws outside the provider)
 //   useIsAdmin()        → boolean
 //   useIsClient()       → boolean
-//   <AuthStateSync />   → refreshes RSC on sign-in/out (mount once)
+//   <AuthStateSync />        → refreshes RSC on sign-in/out (mount once, globally)
+//   <SignCompletionMarker /> → sets a sessionStorage flag right before
+//                              Clerk's hard-nav post-login (mount on the
+//                              sign-in / sign-up pages)
 //
 // File layout:
-//   actions.ts              — Clerk session entry points, server-action boundary
-//   services/auth.service.ts — api calls (HTTP) for the user-session endpoints
-//   guards.tsx              — server-side role render guards
-//   role-context.tsx        — client-side role context + hooks
-//   auth-state-sync.tsx     — client cache-buster on auth-state changes
-//   types.ts                — UserSession, UserRole (re-exported from shared-types)
-//   constants.ts            — REDIRECT_URL, FALLBACK_REDIRECT_URL
+//   actions.ts                  — Clerk session entry points, server-action boundary
+//   services/auth.service.ts    — api calls (HTTP) for the user-session endpoints
+//   guards.tsx                  — server-side role render guards
+//   role-context.tsx            — client-side role context + hooks
+//   auth-state-sync.tsx         — global cache-buster on auth-state changes
+//   sign-completion-marker.tsx  — writes the just-signed-in flag on auth pages
+//   sign-completion-flag.ts     — shared sessionStorage key constant
+//   types.ts                    — UserSession, UserRole (re-exported from shared-types)
+//   constants.ts                — REDIRECT_URL, FALLBACK_REDIRECT_URL
 
 export {
   getCurrentSession,
   getCurrentToken,
 } from './actions';
+export { AuthStateSync } from './auth-state-sync';
 export { REDIRECT_URL } from './constants';
 export { IfRole, RequireRole } from './guards';
 export {
@@ -35,4 +41,5 @@ export {
   useIsClient,
   useRole,
 } from './role-context';
+export { SignCompletionMarker } from './sign-completion-marker';
 export { UserRole, type UserSession } from './types';
