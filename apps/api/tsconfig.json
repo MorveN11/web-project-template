@@ -4,6 +4,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
+    "customConditions": ["dev"],
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],

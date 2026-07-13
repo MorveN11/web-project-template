@@ -4,6 +4,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
+    "customConditions": ["dev"],
     "plugins": [{ "name": "next" }],
     "jsx": "preserve",
     "module": "ESNext",

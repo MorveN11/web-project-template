@@ -57,7 +57,6 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
       "correctness": {
         "useHookAtTopLevel": "error",
         "useExhaustiveDependencies": "warn",
