@@ -14,7 +14,7 @@ export default async function HomePage() {
       </p>
       {userId ? (
         <Button>
-          <Link href="/dashboard">Open dashboard aaa</Link>
+          <Link href="/dashboard">Open dashboard</Link>
         </Button>
       ) : (
         <Button>

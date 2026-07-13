@@ -41,7 +41,12 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      # Hard-pin production-mode vars — `pnpm compose:prod` reads
+      # root .env (which sets NODE_ENV=development for local dev).
+      # Letting that leak in here makes logger.ts pick the
+      # pino-pretty transport at runtime, which then crashes because
+      # the slim image has no pino-pretty installed.
+      NODE_ENV: production
       PORT: 8080
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_QUERIES: ${LOG_QUERIES:-false}
@@ -55,7 +60,6 @@ services:
       CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES}
       # CORS_ORIGIN must match the URL the browser hits — host-side.
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:${WEB_HOST_PORT:-3000}}
-      SEED_ENABLED: ${SEED_ENABLED:-false}
     ports:
       - "${API_HOST_PORT:-4000}:8080"
     # Hit the in-container /health endpoint so the web service can wait
@@ -91,7 +95,8 @@ services:
       api:
         condition: service_healthy
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      # Same hard-pin as api: don't let dev .env leak in.
+      NODE_ENV: production
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/iniciar-sesion}

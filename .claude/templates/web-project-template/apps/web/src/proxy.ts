@@ -2,6 +2,12 @@
 // protected via `auth.protect()`. `createRouteMatcher` is deprecated in
 // @clerk/nextjs v7+, so we route-match inline against the pathname
 // inside the middleware handler.
+//
+// Pinned to Next.js 16.2.3 (not 16.2.4+) because Turbopack on 16.2.4+
+// emits an empty middleware-manifest.json for `proxy.ts`
+// (vercel/next.js#93328), so the proxy never runs and Clerk's `auth()`
+// reports "clerkMiddleware() not detected". Bump to 16.2.x once that
+// issue ships a fix.
 
 import { clerkMiddleware } from '@clerk/nextjs/server';
 

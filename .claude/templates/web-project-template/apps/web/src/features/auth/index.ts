@@ -27,7 +27,6 @@ export {
   getCurrentSession,
   getCurrentToken,
 } from './actions';
-export { AuthStateSync } from './auth-state-sync';
 export { REDIRECT_URL } from './constants';
 export { IfRole, RequireRole } from './guards';
 export {

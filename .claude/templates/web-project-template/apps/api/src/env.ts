@@ -30,11 +30,6 @@ const EnvSchema = z.object({
   // inbound events with this value.
   CLERK_WEBHOOK_SIGNING_SECRET: z.string().min(1).default('whsec_placeholder_set_me_in_dashboard'),
 
-  SEED_ENABLED: z
-    .string()
-    .optional()
-    .transform((v) => v === 'true'),
-
   // Toggle Prisma query event logging. Off by default to keep prod logs
   // focused on request lines.
   LOG_QUERIES: z

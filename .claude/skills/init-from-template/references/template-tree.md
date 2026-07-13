@@ -1,5 +1,5 @@
 ---
-description: Tree snapshot of web-project-template (current: Node 24, pnpm 11, Hono 4 + Prisma 7 + Next.js 16 + Tailwind v4 + Biome 2.5 + Clerk + Docker + GH Actions + Dokploy). One User domain only.
+description: Tree snapshot of web-project-template (current: Node 24, pnpm 11, Hono 4 + Prisma 7 + Next.js 16 + Tailwind v4 + Biome 2.5 + Clerk + Docker + GH Actions + Dokploy). One User domain only. Slim distroless web + slim esbuild api.
 ---
 
 # Template tree (current snapshot)
@@ -31,9 +31,10 @@ web-project-template/
 │   ├── api/
 │   │   ├── .dockerignore
 │   │   ├── .env                   ← gitignored (mirrors .env.example)
-│   │   ├── .env.example
-│   │   ├── Dockerfile             ← 3 stages: deps → build → runner; uses `node --import tsx`
-│   │   ├── docker-entrypoint.sh   ← runs `pnpm --filter @app/db migrate:deploy` before exec'ing the api
+│   │   ├── .env.example           ← no SEED_ENABLED; seed is host-only (pnpm db:seed)
+│   │   ├── Dockerfile             ← 4 stages: deps → build → runner (slim, no pnpm, no tsx in runtime)
+│   │   ├── docker-entrypoint.sh   ← `node node_modules/prisma/build/index.js migrate deploy` then exec api
+│   │   ├── package.runtime.json   ← flat 6-dep manifest for the slim runner (no workspace, no symlinks)
 │   │   ├── package.json
 │   │   ├── tsconfig.json          ← extends tsconfig.base.json
 │   │   ├── tsconfig.build.json    ← TS 6 needs explicit `"rootDir": "./src"` when outDir is set
@@ -47,12 +48,12 @@ web-project-template/
 │   │       │   └── result.ts      ← ok/err + error factories
 │   │       ├── db/prisma-logging.ts
 │   │       ├── dev/               ← dev-only token minting (NEVER in prod)
-│   │       ├── env.ts             ← zod-validated runtime config
+│   │       ├── env.ts             ← zod-validated runtime config (no SEED_ENABLED)
 │   │       ├── features/
 │   │       │   ├── health/        ← /health endpoint
 │   │       │   ├── users/         ← the ONE feature in this template (syncSelf, admin provisioning)
 │   │       │   └── webhooks/      ← Clerk webhook receiver (Svix signature verify)
-│   │       ├── logger.ts          ← pino single source
+│   │       ├── logger.ts          ← pino single source (uses pino-pretty only when NOT production)
 │   │       ├── openapi/           ← shared security + responses constants
 │   │       ├── types/             ← Hono ContextVariableMap augmentation
 │   │       └── index.ts           ← boot: middleware → routes → error handler → serve
@@ -60,7 +61,7 @@ web-project-template/
 │       ├── .dockerignore
 │       ├── .env                   ← gitignored
 │       ├── .env.example
-│       ├── Dockerfile             ← Next.js standalone, 3 stages
+│       ├── Dockerfile             ← Next.js standalone, distroless/nodejs24-debian12:nonroot runner
 │       ├── next.config.ts
 │       ├── package.json
 │       ├── postcss.config.mjs
@@ -79,13 +80,14 @@ web-project-template/
 │           │   ├── globals.css    ← single source of tokens + base styles
 │           │   ├── layout.tsx     ← root: fonts + Navbar + Providers + RoleProvider
 │           │   ├── page.tsx
-│           │   └── providers.tsx   ← 'use client' ClerkProvider wrapper
+│           │   └── providers.tsx  ← 'use client' ClerkProvider wrapper + <AuthStateSync/>
 │           ├── components/
 │           │   ├── layout/navbar.tsx
 │           │   └── ui/             ← shadcn components (excluded from biome formatting)
 │           ├── features/
 │           │   └── auth/
 │           │       ├── actions.ts          ← getCurrentSession, getCurrentToken
+│           │       ├── auth-state-sync.tsx ← 'use client' router.refresh() on isSignedIn flip
 │           │       ├── constants.ts        ← REDIRECT_URL, FALLBACK_REDIRECT_URL
 │           │       ├── guards.tsx          ← <RequireRole>, <IfRole>
 │           │       ├── role-context.tsx    ← useRole, useIsAdmin, useIsClient
@@ -101,35 +103,37 @@ web-project-template/
 │               └── utils.ts
 ├── packages/
 │   ├── db/
-│   │   ├── package.json           ← runtime: Prisma 7, @prisma/adapter-pg, pg; no devDeps (all hoisted to root)
+│   │   ├── package.json           ← exports: import → dist/, dev → src/. dev: tsc watch. runtime: Prisma 7, @prisma/adapter-pg, pg.
 │   │   ├── tsconfig.json
-│   │   ├── prisma.config.ts       ← Prisma 7: URL lives here, runtime uses driver adapter
+│   │   ├── tsconfig.build.json    ← tsc → dist/ (rootDir omitted, includes src/ + generated/)
+│   │   ├── prisma.config.js       ← Prisma 7: plain JS so slim runner can invoke via node (no tsx)
 │   │   ├── prisma/
-│   │   │   ├── schema.prisma      ← single model: User. Replace at fork time.
+│   │   │   ├── schema.prisma      ← provider=prisma-client-js. Single model: User. Replace at fork time.
 │   │   │   ├── migrations/
 │   │   │   │   └── <timestamp>_init/migration.sql
 │   │   │   └── seed.ts
 │   │   └── src/
-│   │       ├── client.ts          ← PrismaClient singleton
+│   │       ├── client.ts          ← PrismaClient singleton (driver adapter)
 │   │       ├── types.ts           ← re-exports Prisma types
 │   │       └── index.ts
 │   └── shared-types/
-│       ├── package.json           ← zod + @hono/zod-openapi (hoisted from api)
+│       ├── package.json           ← exports: import → dist/, dev → src/. dev: tsc watch. zod + @hono/zod-openapi (hoisted from api)
 │       ├── tsconfig.json
+│       ├── tsconfig.build.json
 │       └── src/
 │           ├── cross-cutting/     ← apiErrorSchema, paginationResponseSchema
 │           ├── features/         ← per-domain DTOs (only `user` shipped)
 │           └── index.ts
 ├── docker-compose.yml             ← dev: postgres only (host runs api/web)
-├── docker-compose.prod.yml        ← prod-like: full stack via local Dockerfiles
+├── docker-compose.prod.yml        ← prod-like: full stack via local Dockerfiles. NODE_ENV=production hard-pinned.
 ├── biome.json                     ← SINGLE source of lint + format for every package
 ├── pnpm-workspace.yaml            ← workspaces + overrides (utf-8-validate peer fix)
 ├── pnpm-lock.yaml                 ← single root lockfile (shared-workspace-lockfile=true default)
 ├── tsconfig.base.json             ← shared TS config (every package extends it)
-├── package.json                   ← name, version, description, scripts, engines, deps (zod, @hono/zod-openapi), devDeps (biome, ts, tsx, vitest, @types/node)
+├── package.json                   ← name, version, description, scripts, engines, deps (zod, @hono/zod-openapi), devDeps (biome, ts, tsx, vitest, @types/node, esbuild)
 ├── release.config.mjs
 ├── .editorconfig
-├── .env.example                   ← template for compose + Clerk secrets
+├── .env.example                   ← template for compose + Clerk secrets (no SEED_ENABLED)
 ├── .gitignore
 ├── AGENTS.md                      ← AI-assistant guidance
 ├── CONTRIBUTING.md               ← dev flow + gitflow + conventions
@@ -162,6 +166,19 @@ web-project-template/
 
 Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. One install at root, one version everywhere.
 
+`esbuild` lives in `apps/api/devDependencies` (used by `apps/api` build script only — not hoisted because no other package needs it).
+
+## Slim runtime model (api)
+
+- `apps/api/Dockerfile` builds the api as a 1.1MB esbuild bundle (no tsx at runtime). Workspace packages `@app/db` and `@app/shared-types` are pre-transpiled to `dist/` in the build stage; their `exports` field maps `import` to `dist/` and `dev` to `src/` (so `pnpm dev` with `tsx --conditions=dev` keeps using source).
+- Runner has **no pnpm, no corepack, no tsx, no pino-pretty**. Install is `npm install --omit=dev` from `apps/api/package.runtime.json` (6 deps). Migration runs via `node node_modules/prisma/build/index.js migrate deploy --schema=… --config=prisma.config.js`.
+- Image size: **1.15GB** (was 1.84GB). Cold boot to `api listening`: **~2s** (was 5s).
+
+## Slim runtime model (web)
+
+- `apps/web/Dockerfile` uses **gcr.io/distroless/nodejs24-debian12:nonroot** as the runner base. No shell, no apk. Standalone Next.js output is self-contained; entrypoint is the distroless-inherited `node` with the script as CMD.
+- Image size: **258MB** (was 286MB on alpine).
+
 ## How to extend
 
 | To add… | Where |
@@ -175,6 +192,7 @@ Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. O
 | New GitHub secret | Add to repo Settings → Secrets, then document in `.github/SECRETS.md` |
 | New log line (dev only on web) | `import { logger } from '@/lib/logger'` |
 | Hoist a dep used by 2+ packages | Add to root `package.json`. Remove from sub-packages. Run `pnpm install` once. |
+| Seed the dev DB | `pnpm db:seed` (host only — NOT run in any docker entrypoint) |
 
 ## What you do NOT modify
 
@@ -185,6 +203,8 @@ Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. O
 - Anything already referenced from a secret — credential strings must come from `secrets.*`, never literal.
 - `biome.json` at the root — every app extends it. Do not add per-package `biome.json`.
 - The `User` model — replace with the real domain at fork time, don't keep both.
+- The `NODE_ENV: production` hard-pin in `docker-compose.prod.yml` (api + web services). Letting the dev `.env` leak `NODE_ENV=development` in causes logger.ts to load `pino-pretty`, which is not in the slim image.
+- The `package.runtime.json` flat manifest for the api runner. Workspace deps are not honored at runtime — they must be listed here too if their runtime code is invoked.
 
 ## What CI does NOT do
 
