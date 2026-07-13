@@ -65,7 +65,7 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 
 3a. **Apply the PRD (if provided).** See "Using the PRD" above. Update `package.json` description, `README.md` intro, add a "Project context" section to `AGENTS.md`, refresh `apps/web/src/app/page.tsx` landing copy, and (only if the PRD names a concrete first entity) scaffold placeholder feature files. Do not generate business logic — the scaffold stays boilerplate.
 
-4. **Regenerate env examples.** Replace `replace_me` placeholders with the user's Clerk keys (if provided). Never write real secrets into `.env.example` files — those are committed. Do not add `NEXT_PUBLIC_API_URL` anywhere — the compose file hardcodes the in-container URL (`http://api:8080`) for Docker and `apps/web/src/lib/env/client.ts` provides the dev default.
+4. **Regenerate env examples.** Replace `replace_me` placeholders with the user's Clerk keys (if provided). Never write real secrets into `.env.example` files — those are committed. Do not add `NEXT_PUBLIC_API_URL` anywhere — the compose file hardcodes the in-container URL (`http://api:8080`) for Docker and `apps/web/src/lib/env/client.ts` provides the dev default. Seed is host-only (`pnpm db:seed`); do not add `SEED_ENABLED` to any `.env*` or compose file.
 
 5. **Re-init git + branches.**
    - `cd <target>`
@@ -80,7 +80,8 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
    - `pnpm install` — apps/api's `postinstall` runs `pnpm --filter @app/db generate`.
    - `pnpm db:migrate:dev` against the docker dev postgres.
    - `pnpm typecheck`, `pnpm lint`, `pnpm check`, `pnpm test` — all must be clean.
-   - `pnpm build` — confirm both apps compile end-to-end (catches TS 6 `rootDir` and similar build-only errors).
+   - `pnpm build` — confirm both apps compile end-to-end (catches TS 6 `rootDir`, `outDir` includes, and esbuild external resolution errors).
+   - `docker compose -f docker-compose.prod.yml --env-file .env config | grep NODE_ENV` — confirm `NODE_ENV: production` is hard-pinned for api + web (root `.env` carries `NODE_ENV=development` for dev; the prod compose must override).
 
 7. **Configure GitHub Secrets** (remind the user): see the scaffolded `.github/SECRETS.md`. Required:
    - `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
@@ -93,7 +94,7 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
    - Tree copied and branches set.
    - If a PRD was applied: which files were PRD-aware (package.json description, README intro, AGENTS context, page.tsx landing, optional first-feature scaffold) and which placeholder TODOs remain.
    - `pnpm compose` for dev (uses `docker-compose.yml`, postgres only).
-   - `pnpm compose:prod` for prod-like local validation (full stack via Dockerfiles).
+   - `pnpm compose:prod` for prod-like local validation (full stack via Dockerfiles; ~2s api cold boot, ~0s web).
    - Which GitHub secrets to add before merging to `test`/`main`.
    - The 3-tier cycle: features fork from `dev`, PR to `test`, periodic release `test → main`, sync `main → dev`.
 
@@ -101,22 +102,26 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 
 | Concern | Where it lives |
 | --- | --- |
-| Schema + generated types | `packages/db/prisma/schema.prisma` + `packages/db/prisma.config.ts` (Prisma 7: URL lives in config, runtime uses `@prisma/adapter-pg`). Exposed via `@app/db`. |
-| Backend runtime | `apps/api` — Hono + Prisma + Clerk JWT |
+| Schema + generated types | `packages/db/prisma/schema.prisma` + `packages/db/prisma.config.js` (Prisma 7: URL lives in config, runtime uses `@prisma/adapter-pg`). Exposed via `@app/db`. |
+| Workspace packages (JS) | `@app/db` + `@app/shared-types` ship a `dist/` produced by `tsc -p tsconfig.build.json`. `exports` maps `import` → `dist/`, `dev` → `src/` so local `tsx --conditions=dev` keeps using source. |
+| Backend runtime | `apps/api` — Hono + Prisma + Clerk JWT. Built as an esbuild bundle (1.1MB), runs under plain `node` in production. |
 | Backend Repository layer | `apps/api/src/<feature>/repository.ts` — fluent Prisma facade |
 | Backend Service layer | `apps/api/src/<feature>/service.ts` — owns business rules + Result<T> |
 | Backend Router | `apps/api/src/<feature>/routes.ts` — zod validation + `handleResult` |
 | Backend Result pattern | `apps/api/src/core/result.ts` + `core/handle.ts` |
-| Backend structured logs | `apps/api/src/logger.ts` + `db/prisma-logging.ts` |
+| Backend structured logs | `apps/api/src/logger.ts` + `db/prisma-logging.ts` (pino-pretty only when `NODE_ENV !== 'production'`) |
 | Frontend dev-only logger | `apps/web/src/lib/logger.ts` — no-op in prod |
 | Frontend api-client logging | `apps/web/src/lib/api-client.ts` — `api:request` / `api:response` / `api:error` |
 | Frontend server-action result wrapper | `apps/web/src/lib/safe-action.ts` |
 | Frontend env validation | `apps/web/src/lib/env/{client,server}.ts` |
+| Frontend auth-state cache buster | `apps/web/src/features/auth/auth-state-sync.tsx` — `router.refresh()` on `isSignedIn` flip so server components re-render after Clerk's soft nav |
 | Single lint/format config | `biome.json` (root) — covers every package |
 | Hoisted devDependencies | `package.json` (root): biome, typescript, tsx, vitest, @types/node, zod, @hono/zod-openapi |
+| esbuild (api build only) | `apps/api/devDependencies` — used by the api build script, not hoisted |
 | Root env (compose reads from this) | `.env` (gitignored, `.env.example` is the template) |
 | Docker (dev) | `docker-compose.yml` — postgres only |
-| Docker (prod-like) | `docker-compose.prod.yml` — full stack via local Dockerfiles |
+| Docker (prod-like) | `docker-compose.prod.yml` — full stack via local Dockerfiles. api runner is `node:alpine` slim (no pnpm, no tsx), web runner is `gcr.io/distroless/nodejs24-debian12:nonroot` |
+| API runner prod manifest | `apps/api/package.runtime.json` — flat 6-dep manifest used by `npm install --omit=dev` in the slim runner (no workspace) |
 | CI workflows | `.github/workflows/` (5 files: ci, check-branch, check-pull-request, release.prod, release.test) |
 | GH Actions version pinning | major-only (v6, v5, v4, v2) — see `.github/workflows/*.yml` |
 
@@ -134,6 +139,9 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 - The template ships only the `User` domain. Replace it with the real domain entity when forking. Do not re-introduce placeholder features like `items`.
 - Pin GH Action versions to major-only (`@v6`, not `@v6.0.0`). When forking, keep this convention.
 - Engines: `node >=24`, `pnpm >=11`. Sub-packages must NOT carry duplicate biome, typescript, tsx, vitest, @types/node, zod, or @hono/zod-openapi — those are hoisted to the root.
+- `docker-compose.prod.yml` MUST hard-pin `NODE_ENV: production` for both `api` and `web` services. Root `.env` carries `NODE_ENV=development` for local dev; if it leaks into the prod compose, `logger.ts` tries to load `pino-pretty` at runtime and crashes because the slim image doesn't ship it.
+- `apps/api/package.runtime.json` is the source of truth for what runs in the slim api container. If you add a new runtime dep, add it here too — workspace deps are not honored at runtime.
+- Seed is host-only: `pnpm db:seed` from the repo root. Do not add `SEED_ENABLED` to env files or compose; the slim api image has no `tsx` to run `prisma/seed.ts`.
 
 ## Keeping the template + skill in sync
 
@@ -171,12 +179,19 @@ Both skill locations — `~/.claude/skills/init-from-template/` (global, system-
 ## What to do if something fails
 
 - `pnpm install` errors → check `pnpm-workspace.yaml` `onlyBuiltDependencies`. Add any new package whose postinstall compiles native code.
-- `pnpm db:migrate:dev` errors with `datasource url is no longer supported` → schema was edited to put back `url = env(...)`. Remove it; URL belongs in `packages/db/prisma.config.ts`.
+- `pnpm db:migrate:dev` errors with `datasource url is no longer supported` → schema was edited to put back `url = env(...)`. Remove it; URL belongs in `packages/db/prisma.config.js`.
 - Postgres not running → `pnpm compose` first; `POSTGRES_HOST_PORT` must match `DATABASE_URL`.
 - `pnpm compose:prod` fails to find images → set `API_IMAGE`/`WEB_IMAGE` in `.env` or let it build locally without them.
-- CI lint errors from shadcn components → confirm `biome.json` (root) excludes `!**/apps/**/src/components/ui`.
+- `pnpm compose:prod` api crashes with `unable to determine transport target for "pino-pretty"` → root `.env` leaked `NODE_ENV=development` into the prod compose. Confirm `docker-compose.prod.yml` hard-pins `NODE_ENV: production` for both api + web.
+- `pnpm compose:prod` api entrypoint fails with `spawn tsx ENOENT` (seed) → the seed branch was left in the entrypoint. The slim api image has no `tsx`; remove the `SEED_ENABLED` branch and run `pnpm db:seed` from the host instead.
 - `pnpm build` fails with `error TS5011: rootDir must be explicitly set` in `apps/api` → add `"rootDir": "./src"` to `apps/api/tsconfig.build.json`. TS 6 enforces this when `outDir` is set without an explicit rootDir.
+- `pnpm build` fails in `packages/db` with `File .../generated/client.ts is not under 'rootDir' '.../src'` → the new `prisma-client` generator writes outside `rootDir`. Either revert the generator to `prisma-client-js` or remove `rootDir` and include both `src/` and `generated/` in `tsconfig.build.json`.
+- esbuild bundle fails with `Could not resolve "@app/db"` during docker build → `packages/db/dist/` is missing. The build stage must run `pnpm --filter @app/db generate` (creates `generated/`) and `pnpm --filter @app/db build` (creates `dist/`) before bundling the api.
+- CI typecheck fails with `Cannot find module '@app/shared-types' / '@app/db'` even though `pnpm install` succeeded → the packages ship `.d.ts` from `dist/`, but CI runs `typecheck` BEFORE `build`. Both `apps/api/tsconfig.json` and `apps/web/tsconfig.json` already set `"customConditions": ["dev"]` so TypeScript resolves the packages' `dev` export (`./src/index.ts`) directly. If you ever remove that line, typecheck will break on a clean checkout.
+- CI api build fails with `Could not resolve "@app/db"` / `"@app/shared-types"` → esbuild resolves via the `import` export (which points to `dist/`), but `dist/` doesn't exist yet. The `apps/api` `build` script chains `pnpm --filter @app/db generate && pnpm --filter @app/shared-types --filter @app/db build` BEFORE the esbuild call so `dist/` exists when the bundle resolves workspace imports. Note: esbuild's `--conditions=dev` flag does NOT work here — it adds the condition but doesn't drop the default `node`/`import` ones, so `import → ./dist/index.js` still wins. The customConditions tsconfig trick works for typecheck but not for the esbuild bundle.
+- CI lint errors from shadcn components → confirm `biome.json` (root) excludes `!**/apps/**/src/components/ui`.
 - Docker: syncSelf fails, infinite redirect loop → `NEXT_PUBLIC_API_URL` was baked at build time pointing to `localhost:4000`. Compose must hardcode `http://api:8080` as the build ARG. See the README "Docker" section.
+- After sign-in the user appears logged-out until a hard refresh → mount `<AuthStateSync />` inside `Providers` (already shipped). It calls `router.refresh()` on every `isSignedIn` flip so server components re-render with fresh auth context.
 - Dokploy webhook fails → check the corresponding `DOKPLOY_DEPLOY_WEBHOOK_*` secret exists and the Dokploy side accepts `tag`+`service` query params.
 - Template files missing → `$TEMPLATE_DIR` doesn't exist or wasn't synced. Re-stage from the project copy via rsync (see "Keeping the template + skill in sync" above).
 - VS Code shows `{ expected` errors on Tailwind v4 at-rules (`@theme`, `@utility`, `@apply`, `@custom-variant`) → these are CSS Language Service false positives; add `"css.lint.unknownAtRules": "ignore"` to `.vscode/settings.json`, or install the official `biomejs.biome` extension (don't run `fronterior.biome-monorepo` alongside it).
