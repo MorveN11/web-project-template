@@ -12,12 +12,14 @@
 //   useRole()           → UserSession (throws outside the provider)
 //   useIsAdmin()        → boolean
 //   useIsClient()       → boolean
+//   <AuthStateSync />   → refreshes RSC on sign-in/out (mount once)
 //
 // File layout:
 //   actions.ts              — Clerk session entry points, server-action boundary
 //   services/auth.service.ts — api calls (HTTP) for the user-session endpoints
 //   guards.tsx              — server-side role render guards
 //   role-context.tsx        — client-side role context + hooks
+//   auth-state-sync.tsx     — client cache-buster on auth-state changes
 //   types.ts                — UserSession, UserRole (re-exported from shared-types)
 //   constants.ts            — REDIRECT_URL, FALLBACK_REDIRECT_URL
 
@@ -25,6 +27,7 @@ export {
   getCurrentSession,
   getCurrentToken,
 } from './actions';
+export { AuthStateSync } from './auth-state-sync';
 export { REDIRECT_URL } from './constants';
 export { IfRole, RequireRole } from './guards';
 export {

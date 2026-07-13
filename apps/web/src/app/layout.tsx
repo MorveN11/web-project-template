@@ -45,7 +45,9 @@ export default async function RootLayout({ children }: Props) {
       <body className="flex min-h-screen flex-col">
         <Providers>
           <Navbar />
-          <main className="flex-1">{session ? <RoleProvider value={session}>{children}</RoleProvider> : children}</main>
+          <main className="flex flex-1 flex-col">
+            {session ? <RoleProvider value={session}>{children}</RoleProvider> : children}
+          </main>
         </Providers>
       </body>
     </html>
