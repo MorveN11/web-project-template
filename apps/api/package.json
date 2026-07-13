@@ -4,7 +4,7 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx watch --conditions=dev --env-file=.env src/index.ts",
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.js --sourcemap --external:@prisma/client --external:.prisma/* --external:@prisma/adapter-pg --external:pg --external:pino --external:pino-pretty",
+    "build": "pnpm --filter @app/db generate && pnpm --filter @app/shared-types --filter @app/db build && esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.js --sourcemap --external:@prisma/client --external:.prisma/* --external:@prisma/adapter-pg --external:pg --external:pino --external:pino-pretty",
     "start": "node --enable-source-maps dist/index.js",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "lint": "biome lint .",

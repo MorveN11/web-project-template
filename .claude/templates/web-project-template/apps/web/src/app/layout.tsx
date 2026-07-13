@@ -2,12 +2,11 @@ import type { Metadata, Viewport } from 'next';
 import { Fira_Code, Inter, Merriweather } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Navbar } from '@/components/layout/navbar';
-import { cn } from '@/lib/utils';
-
-import { Providers } from './providers';
-import './globals.css';
 import { RoleProvider } from '@/features/auth';
 import { getCurrentSession } from '@/features/auth/actions';
+import { cn } from '@/lib/utils';
+import { Providers } from './providers';
+import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 const merriweather = Merriweather({ subsets: ['latin'], variable: '--font-serif' });

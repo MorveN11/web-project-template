@@ -8,8 +8,8 @@
 // `prisma generate` and that must succeed in CI where DATABASE_URL is
 // not set.
 //
-// We let prisma fail naturally when the URL is missing for an operation
-// that needs it, instead of crashing on import.
+// Plain JS (not TS) so the slim runtime image can run `node .../prisma/build/index.js`
+// directly — no tsx/ts-node required at runtime.
 
 import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
