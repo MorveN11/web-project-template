@@ -24,14 +24,20 @@ RUN corepack enable pnpm
 # ---- deps --------------------------------------------------------------
 FROM base AS deps
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
-# Copy the shared-types SOURCE (not just package.json) so pnpm can
-# symlink it into node_modules and Turbopack can resolve it during
-# the next build. Filtered install keeps this stage slim.
+COPY tsconfig.base.json ./tsconfig.base.json
+# Copy the shared-types package files (incl. tsconfig.build.json +
+# src/) so pnpm can symlink it and we can compile it to dist/ for the
+# web build to resolve via the package's `exports` field.
 COPY packages/shared-types ./packages/shared-types
 COPY apps/web/package.json ./apps/web/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm fetch --frozen-lockfile && \
     pnpm install --filter @app/web... --offline --frozen-lockfile --ignore-scripts
+
+# Transpile shared-types to JS so Next.js resolves `./dist/index.js`
+# via the package's exports field (matches the api's setup). Drop the
+# filter so tsc is reachable from /app/node_modules/.bin.
+RUN pnpm --filter @app/shared-types... build
 
 # ---- build -------------------------------------------------------------
 # Build ARGs bake the public runtime config into the JS bundle —
@@ -54,19 +60,20 @@ WORKDIR /app/apps/web
 RUN pnpm run build
 
 # ---- runner ------------------------------------------------------------
-# Standalone output ships a minimal node tree: server.js + the
-# workspace node_modules the app actually imports + the source
-# stub. Add the static + public assets. No package manager needed
-# at runtime (Next.js standalone is self-contained).
-FROM node:${NODE_VERSION} AS runner
+# Distroless Node base: ~200MB smaller than node:alpine, no shell
+# tooling, no apk. Standalone Next.js bundle is self-contained; no
+# package manager needed at runtime. The entrypoint must use the
+# full path to node since distroless has no PATH for shims.
+FROM gcr.io/distroless/nodejs24-debian12:nonroot AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=8080 \
     HOSTNAME=0.0.0.0
-RUN addgroup -g 1001 -S web && adduser -S web -u 1001 -G web
-COPY --from=build --chown=web:web /app/apps/web/.next/standalone ./
-COPY --from=build --chown=web:web /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=build --chown=web:web /app/apps/web/public ./apps/web/public
-USER web
+COPY --from=build /app/apps/web/.next/standalone ./
+COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build /app/apps/web/public ./apps/web/public
 EXPOSE 8080
-CMD ["node", "apps/web/server.js"]
+USER nonroot
+# Distroless base sets ENTRYPOINT=/nodejs/bin/node already, so CMD is
+# the script arg. WORKDIR is /app, so the relative path resolves.
+CMD ["apps/web/server.js"]

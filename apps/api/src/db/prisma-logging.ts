@@ -2,12 +2,12 @@
 // via LOG_QUERIES=true so prod logs stay request-scoped. Errors and
 // warnings always go through.
 
-import { database } from '@app/db';
+import { database, type Prisma } from '@app/db';
 import { env } from '../env';
 import { logger } from '../logger';
 
 export function attachPrismaLogging() {
-  database.$on('query', (event) => {
+  database.$on('query', (event: Prisma.QueryEvent) => {
     if (!env.LOG_QUERIES) return;
     logger.debug(
       {
@@ -19,11 +19,11 @@ export function attachPrismaLogging() {
     );
   });
 
-  database.$on('warn', (event) => {
+  database.$on('warn', (event: Prisma.LogEvent) => {
     logger.warn({ event }, 'prisma warn');
   });
 
-  database.$on('error', (event) => {
+  database.$on('error', (event: Prisma.LogEvent) => {
     logger.error({ event: event.message }, 'prisma error');
   });
 }
