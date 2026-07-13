@@ -41,16 +41,13 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --filter @app/api... --offline --frozen-lockfile --ignore-scripts
 
 # ---- build ---------------------------------------------------------------
-# Build workspace packages to JS, then bundle the api.
+# The api's `build` script already chains `prisma generate` +
+# workspace package builds + the esbuild bundle. No manual steps here.
 FROM deps AS build
 COPY tsconfig.base.json ./tsconfig.base.json
 COPY packages/db ./packages/db
 COPY packages/shared-types ./packages/shared-types
 COPY apps/api ./apps/api
-# Generate Prisma client first — produces the types @app/db imports.
-RUN pnpm --filter @app/db generate
-# Transpile workspace packages to JS so the api can be bundled without tsx.
-RUN pnpm --filter @app/shared-types --filter @app/db build
 RUN pnpm --filter @app/api build
 
 # ---- runner --------------------------------------------------------------
