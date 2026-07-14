@@ -29,8 +29,25 @@ export class UserService {
   async getByClerkId(auth: ClerkAuthContext): Promise<Result<UserDto>> {
     const row = await this.users.findByClerkId(auth.userId);
     if (!row) return err(errNotFound(`no local user row for clerkId ${auth.userId}`));
-    if (!row.role || row.role !== auth.role) {
-      return this.syncSelf(auth); // role changed on Clerk — update local row + stamp Clerk
+    const roleChanged = !row.role || row.role !== auth.role;
+    const emailChanged = !auth.email || row.email !== auth.email;
+    const firstNameChanged = !auth.firstName || row.firstName !== auth.firstName;
+    const lastNameChanged = !auth.lastName || row.lastName !== auth.lastName;
+    const imageUrlChanged = (auth.imageUrl ?? null) !== (row.imageUrl ?? null);
+
+    if (roleChanged || emailChanged || firstNameChanged || lastNameChanged || imageUrlChanged) {
+      logger.info(
+        {
+          clerkId: auth.userId,
+          roleChanged,
+          emailChanged,
+          firstNameChanged,
+          lastNameChanged,
+          imageUrlChanged,
+        },
+        'getByClerkId: drift detected, reconciling via syncSelf',
+      );
+      return this.syncSelf(auth); // drift detected — reconcile local row + stamp Clerk
     }
     return ok(toUserDto(row));
   }

@@ -17,6 +17,10 @@ export interface ClerkAuthContext {
   sessionId: string;
   token: string;
   role: UserRoleType | null;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  imageUrl: string | null;
   claims: NonNullable<Awaited<ReturnType<typeof verifyToken>>>;
 }
 
@@ -62,9 +66,14 @@ export async function verifyClerkToken(token: string): Promise<ClerkAuthContext>
     const c = claims as {
       role?: unknown;
       userId?: unknown;
+      email?: unknown;
+      firstName?: unknown;
+      lastName?: unknown;
+      imageUrl?: unknown;
     };
     const rawRole = c.role;
     const role: UserRoleType | null = rawRole === UserRole.ADMIN || rawRole === UserRole.CLIENT ? rawRole : null;
+    const str = (v: unknown) => (typeof v === 'string' && v.length > 0 ? v : null);
     return {
       userId: claims.sub,
       // Clerk uses `sid` for session id. The SDK types it loosely;
@@ -72,6 +81,10 @@ export async function verifyClerkToken(token: string): Promise<ClerkAuthContext>
       sessionId: typeof claims.sid === 'string' ? claims.sid : '',
       token,
       role,
+      email: str(c.email),
+      firstName: str(c.firstName),
+      lastName: str(c.lastName),
+      imageUrl: str(c.imageUrl),
       claims,
     };
   } catch (cause) {
