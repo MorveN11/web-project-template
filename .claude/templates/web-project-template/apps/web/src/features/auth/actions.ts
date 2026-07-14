@@ -7,11 +7,11 @@
 // so a single render reads the session at most once.
 //
 //   getCurrentSession({ redirectIfNotFound }) → UserSession | null
-//     Reads the Clerk session, asks the api for the local user row,
-//     and returns it. On first-ever sign-in the local row is created
-//     transparently via the service's "read or sync" path. When
-//     `redirectIfNotFound: true`, missing sessions redirect to the
-//     Clerk sign-in URL instead of returning null.
+//     Reads the Clerk session and returns the local user row. The
+//     api reconciles the row on every call, so no caller-side sync
+//     dance is needed. When `redirectIfNotFound: true`, missing
+//     sessions redirect to the Clerk sign-in URL instead of
+//     returning null.
 //
 //   getCurrentToken({ redirectIfNotFound }) → string | null
 //     The current Clerk session JWT, for callers that need to call
@@ -38,18 +38,14 @@ async function _getCurrentSession({ redirectIfNotFound = false } = {}) {
     const { isAuthenticated, sessionId, getToken } = await auth();
     const token = await getToken();
 
-    // Not signed in: short-circuit before any api call. With
-    // `redirectIfNotFound: true`, the redirect throws a control-flow
-    // error that Next.js catches — we never return.
     if (!isAuthenticated || !token) {
       if (redirectIfNotFound) redirect(REDIRECT_URL);
       return null;
     }
 
-    // Service handles the 404 → syncSelf retry. `null` here means a
-    // non-404 failure (api down, 500, etc.) — revoke the Clerk
-    // session and bounce the user to sign-in so they can retry from a
-    // known-clean state.
+    // `null` here means the api call failed (down, 500, network) —
+    // revoke the Clerk session and bounce the user to sign-in so
+    // they retry from a known-clean state.
     const session = await authService.getOrSyncMyUserSession(token);
     if (!session) {
       const client = await clerkClient();
@@ -59,8 +55,6 @@ async function _getCurrentSession({ redirectIfNotFound = false } = {}) {
 
     return session;
   } catch (cause) {
-    // Next.js redirects/notFound travel as thrown control values —
-    // rethrow them so the framework can handle them.
     if (isNextControlError(cause)) throw cause;
     logger.warn({ cause }, 'getCurrentSession: unexpected failure');
     if (redirectIfNotFound) redirect(REDIRECT_URL);

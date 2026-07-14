@@ -1,8 +1,8 @@
 // Clerk webhook sync service. Mirrors Clerk user lifecycle events
 // into the local `User` table. We do NOT handle `user.created` here —
-// the web's `getCurrentSession` calls `POST /users/me` on first
-// authenticated render, which creates the local row + stamps Clerk
-// `publicMetadata.{role,userId}` in one round-trip. Subscribing to
+// the api's `getByClerkId` self-syncs on the first authenticated
+// render, which creates the local row + stamps Clerk
+// `privateMetadata.role` in one round-trip. Subscribing to
 // `user.created` would just duplicate that work (and race with it).
 //
 // Why this lives in the api, not the web app:
@@ -26,7 +26,7 @@ export class UserWebhookService {
   constructor(private readonly users: UserRepository) {}
 
   // `user.updated` — profile fields changed (email, firstName,
-  // lastName, imageUrl, avatar). Frontend `POST /users/me` only runs
+  // lastName, imageUrl, avatar). The api's `getByClerkId` only runs
   // on authenticated renders, so it doesn't catch every profile edit;
   // the webhook covers the gap for background changes (Clerk dashboard
   // edits, OAuth provider updates, avatar swaps, etc.). Role field is
@@ -36,8 +36,8 @@ export class UserWebhookService {
   async handleUpdated(user: UserJSON): Promise<WebhookOutcome> {
     const existing = await this.users.findByClerkId(user.id);
     if (!existing) {
-      // No local row yet — let the frontend's `POST /users/me` self-
-      // sync handle the initial mirror. We ack 200 so Clerk doesn't
+      // No local row yet — let the api's `getByClerkId` self-sync
+      // handle the initial mirror. We ack 200 so Clerk doesn't
       // retry; the next webhook or auth render will sync.
       logger.info({ clerkId: user.id }, 'webhook: updated before local row exists; skipping');
       return 'noop';
@@ -50,7 +50,7 @@ export class UserWebhookService {
     const lastName = user.last_name ?? existing.lastName;
     const email = user.email_addresses[0]?.email_address ?? existing.email;
     const imageUrl = user.image_url ?? existing.imageUrl ?? null;
-    const { role } = user.public_metadata ?? {};
+    const { role } = user.private_metadata ?? {};
 
     await this.users.upsert({
       clerkId: user.id,

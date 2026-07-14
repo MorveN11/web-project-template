@@ -1,9 +1,10 @@
 // `/users` mount. Two sub-routers, both authenticated:
-//   - `usersSelf`  → POST /me   — any signed-in user can call this
-//                                to mirror their Clerk profile into
-//                                the local User table.
-//   - `usersAdmin` → POST /     — admin-only provisioning of new
-//                                Clerk accounts (with role assignment).
+//   - `usersSelf`  → GET /me  — any signed-in user reads their local
+//                               row. The handler reconciles on the
+//                               fly (idempotent), so the row is
+//                               created on first call.
+//   - `usersAdmin` → POST /   — admin-only provisioning of new
+//                               Clerk accounts (with role assignment).
 // Both mount under the same `/users` path; Hono routes each request
 // to the matching sub-router by `method` + `path`.
 //
@@ -17,7 +18,7 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import { getAuth, requireAuth } from '@/auth/clerk';
 import { requireRole } from '@/auth/role';
 import { handleResult } from '@/core/handle';
-import { authErrorResponses, conflictResponse, notFoundResponse } from '@/openapi/responses';
+import { authErrorResponses, conflictResponse } from '@/openapi/responses';
 import { bearerSecurity } from '@/openapi/security';
 import type { UserDto } from './mappers';
 import { UserRepository } from './repository';
@@ -40,10 +41,8 @@ const userDtoSchema = z
   })
   .openapi('UserDto');
 
-// ----- Self-sync + read (any signed-in user) ------------------------------
+// ----- Self read (any signed-in user) -------------------------------------
 
-// GET /me — read the local row for the caller. Returns 404 if the
-// row hasn't been mirrored yet (call POST /me first).
 const getMeRoute = createRoute({
   method: 'get',
   path: '/me',
@@ -51,34 +50,15 @@ const getMeRoute = createRoute({
   responses: {
     200: { content: { 'application/json': { schema: userDtoSchema } }, description: 'local user row' },
     ...authErrorResponses,
-    404: notFoundResponse[404],
-  },
-});
-
-// POST /me — mirror Clerk profile into the local User table +
-//             stamp publicMetadata on Clerk.
-const syncSelfRoute = createRoute({
-  method: 'post',
-  path: '/me',
-  security: bearerSecurity,
-  responses: {
-    200: { content: { 'application/json': { schema: userDtoSchema } }, description: 'user mirrored' },
-    ...authErrorResponses,
-    500: { description: 'sync failed' },
   },
 });
 
 const usersSelf = new OpenAPIHono();
 usersSelf.use('*', requireAuth);
-usersSelf
-  .openapi(getMeRoute, async (c) => {
-    const auth = getAuth(c);
-    return handleResult(await service.getByClerkId(auth), c);
-  })
-  .openapi(syncSelfRoute, async (c) => {
-    const auth = getAuth(c);
-    return handleResult(await service.syncSelf(auth), c);
-  });
+usersSelf.openapi(getMeRoute, async (c) => {
+  const auth = getAuth(c);
+  return handleResult(await service.getByClerkId(auth), c);
+});
 
 // ----- Admin provisioning --------------------------------------------------
 
