@@ -1,27 +1,43 @@
-// Clerk JWT verification via the official `@clerk/backend` SDK. Replaces
-// a hand-rolled jose path: Clerk resolves the issuer/audience from
-// `secretKey` automatically, fetches JWKS from the right place, and
-// keeps the verification primitives in sync with the rest of the
-// Clerk ecosystem. Middleware still throws on failure (Hono's
-// onError maps HttpError to the wire envelope) and downstream handlers
-// read the typed context with `getAuth(c)`.
+// Clerk JWT verification + BAPI-backed auth context.
+//
+// Flow:
+//   1. Verify the bearer token (signature, exp, iss) via `@clerk/backend`.
+//   2. Resolve the Clerk user with `clerkClient.users.getUser(sub)`.
+//   3. Source profile fields + `privateMetadata.role` from the user
+//      object — never from JWT claims.
+//
+// Why BAPI for the user object (not just the `sub` from the JWT):
+//   - Keeps the JWT template empty of custom claims. The web app
+//     cannot tamper with role, email, or name by forging a token —
+//     those values come straight from Clerk's user store on every
+//     authenticated request.
+//   - `privateMetadata` is backend-only by design; the role lives
+//     there (not in `publicMetadata`, which the frontend SDK exposes
+//     via the session token).
+//   - Handlers get a single `clerkUser` object instead of a custom-
+//     claims soup, and `service.syncSelf` reuses it without a second
+//     BAPI round-trip.
+//
+// Trade-off: +1 Clerk BAPI read per authenticated request. Acceptable
+// at current scale; if BAPI quota becomes a concern, cache the user
+// object briefly (e.g. 30s in-memory keyed on `sub`).
 
 import { UserRole, type UserRole as UserRoleType } from '@app/shared-types';
-import { verifyToken } from '@clerk/backend';
+import { createClerkClient, type User, verifyToken } from '@clerk/backend';
 import type { Context, MiddlewareHandler } from 'hono';
 import { env } from '../env';
 import { logger, withRequest } from '../logger';
 
 export interface ClerkAuthContext {
-  userId: string;
+  clerkUserId: string;
   sessionId: string;
   token: string;
   role: UserRoleType | null;
-  email: string | null;
-  firstName: string | null;
-  lastName: string | null;
+  email: string;
+  firstName: string;
+  lastName: string;
   imageUrl: string | null;
-  claims: NonNullable<Awaited<ReturnType<typeof verifyToken>>>;
+  clerkUser: User;
 }
 
 export class HttpError extends Error {
@@ -36,71 +52,66 @@ export class HttpError extends Error {
 }
 
 const AUTHORIZED_PARTIES = env.CLERK_AUTHORIZED_PARTIES;
+const clerkClient = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
 
 export async function verifyClerkToken(token: string): Promise<ClerkAuthContext> {
+  // `authorizedParties` only applies to JWTs minted by the Clerk
+  // frontend SDK — those carry an `azp` claim matching the origin
+  // that requested them. BAPI-minted tokens have no `azp`; passing
+  // `authorizedParties` for those would reject them. Only add the
+  // check when the token actually carries `azp`.
+  let sub: string;
+  let sessionId: string;
   try {
-    // `authorizedParties` only applies to JWTs minted by the Clerk
-    // frontend SDK — those carry an `azp` claim matching the
-    // origin that requested them. Tokens minted server-side via the
-    // BAPI (e.g. our /dev/issue-token endpoint, or any other
-    // machine-to-machine flow) have NO `azp`, and passing
-    // `authorizedParties` would reject them.
-    //
-    // Strategy: do the signature + exp + iss check unconditionally;
-    // only add `authorizedParties` when the token actually carries
-    // an `azp` claim. That way both flows work without weakening
-    // either — frontend tokens are still pinned to known origins,
-    // BAPI tokens pass through.
     const claims = await verifyToken(token, {
       secretKey: env.CLERK_SECRET_KEY,
       ...(hasAzp(token) && { authorizedParties: AUTHORIZED_PARTIES }),
     });
-    if (!claims.sub) {
-      throw new HttpError(401, 'unauthorized', 'missing sub claim');
-    }
-    // Role comes from the JWT template claim first (set by Clerk's
-    // session-token customization), with a fallback to the raw
-    // `publicMetadata` field for tokens minted before the template
-    // existed. The local-DB user id is the `userId` template claim;
-    // the Clerk user id is the standard `sub`.
-    const c = claims as {
-      role?: unknown;
-      userId?: unknown;
-      email?: unknown;
-      firstName?: unknown;
-      lastName?: unknown;
-      imageUrl?: unknown;
-    };
-    const rawRole = c.role;
-    const role: UserRoleType | null = rawRole === UserRole.ADMIN || rawRole === UserRole.CLIENT ? rawRole : null;
-    const str = (v: unknown) => (typeof v === 'string' && v.length > 0 ? v : null);
-    return {
-      userId: claims.sub,
-      // Clerk uses `sid` for session id. The SDK types it loosely;
-      // coerce to string for our typed context shape.
-      sessionId: typeof claims.sid === 'string' ? claims.sid : '',
-      token,
-      role,
-      email: str(c.email),
-      firstName: str(c.firstName),
-      lastName: str(c.lastName),
-      imageUrl: str(c.imageUrl),
-      claims,
-    };
+    if (!claims.sub) throw new HttpError(401, 'unauthorized', 'missing sub claim');
+    sub = claims.sub;
+    sessionId = typeof claims.sid === 'string' ? claims.sid : '';
   } catch (cause) {
     if (cause instanceof HttpError) throw cause;
     logger.debug({ cause }, 'clerk token verification failed');
     throw new HttpError(401, 'unauthorized', 'invalid or expired token');
   }
+
+  let clerkUser: User;
+  try {
+    clerkUser = await clerkClient.users.getUser(sub);
+  } catch (cause) {
+    logger.debug({ cause, sub }, 'clerk user fetch failed');
+    throw new HttpError(401, 'unauthorized', 'invalid or expired token');
+  }
+
+  const email = clerkUser.emailAddresses[0]?.emailAddress;
+  if (!email) {
+    logger.debug({ sub }, 'clerk user has no email');
+    throw new HttpError(401, 'unauthorized', 'invalid or expired token');
+  }
+
+  const meta = (clerkUser.privateMetadata ?? {}) as { role?: unknown };
+  const rawRole = meta.role;
+  const role: UserRoleType | null = rawRole === UserRole.ADMIN || rawRole === UserRole.CLIENT ? rawRole : null;
+
+  return {
+    clerkUserId: sub,
+    sessionId,
+    token,
+    role,
+    email,
+    firstName: clerkUser.firstName ?? '',
+    lastName: clerkUser.lastName ?? '',
+    imageUrl: clerkUser.imageUrl ?? null,
+    clerkUser,
+  };
 }
 
 /**
- * Cheap pre-check: does this JWT carry an `azp` claim?
- *
- * Implemented by decoding the payload (middle segment) without
- * verifying the signature — we only need to know the claim exists
- * so we can decide whether to pass `authorizedParties`. The actual
- * signature verification happens inside `verifyToken`.
+ * Cheap pre-check: does this JWT carry an `azp` claim? Decodes the
+ * payload (middle segment) without verifying the signature — we only
+ * need to know the claim exists to decide whether to pass
+ * `authorizedParties`. Signature verification happens inside `verifyToken`.
  */
 function hasAzp(token: string): boolean {
   const segments = token.split('.');
@@ -137,14 +148,14 @@ export function getAuth(c: Context): ClerkAuthContext {
 // Logger-context middleware. Attaches `user_id` to the request-scoped
 // pino logger when an auth context is present (silently skips on
 // public routes) and re-primes the logger on sub-routers where the
-// parent app's `request_id` middleware didn't reach. Single source of
-// truth — wired once at the app root in `src/index.ts` so every route
+// parent app's `request_id` middleware didn't reach. Single source
+// of truth — wired once at the app root in `src/index.ts` so every route
 // inherits it without per-feature duplication.
 export const attachUserLogger: MiddlewareHandler = async (c, next) => {
   try {
     const auth = getAuth(c);
     const log = c.get('log') as ReturnType<typeof withRequest>;
-    c.set('log', log.child({ user_id: auth.userId } as Record<string, unknown>) as ReturnType<typeof withRequest>);
+    c.set('log', log.child({ user_id: auth.clerkUserId } as Record<string, unknown>) as ReturnType<typeof withRequest>);
   } catch {
     /* public path — no auth context */
   }

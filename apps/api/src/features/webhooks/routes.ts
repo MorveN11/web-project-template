@@ -12,10 +12,10 @@
 //     in via a single switch in the dispatch function.
 //
 // Subscribed events: `user.updated`, `user.deleted`. `user.created`
-// is intentionally NOT handled here — the web's `getCurrentSession`
-// calls `POST /users/me` on first authenticated render, which creates
-// the local row + stamps Clerk `publicMetadata.{role,userId}`. Having
-// the webhook duplicate that work would race with the frontend sync.
+// is intentionally NOT handled here — the api's `getByClerkId`
+// self-syncs on the first authenticated render, which creates the
+// local row + stamps Clerk `privateMetadata.role`. Having the
+// webhook duplicate that work would race with the request path.
 //
 // Reliability contract:
 //   - 2xx on success → Svix stops retrying.
