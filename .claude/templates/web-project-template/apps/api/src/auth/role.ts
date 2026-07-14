@@ -8,7 +8,7 @@
 //   app.use('/admin/*', requireRole(UserRole.ADMIN));
 //
 // `requireRole` throws 403 Forbidden (caught by the global onError)
-// when the user's `publicMetadata.role` is null or not in the allowed
+// when the user's `privateMetadata.role` is null or not in the allowed
 // list. Null roles usually mean the default-role action hasn't run
 // yet — surface the 403 and let the client redirect to the error page.
 
@@ -17,8 +17,8 @@ import type { MiddlewareHandler } from 'hono';
 import { getAuth, HttpError } from './clerk';
 
 class RoleForbiddenError extends HttpError {
-  constructor(allowed: readonly UserRoleType[]) {
-    super(403, 'forbidden', `requires role: ${allowed.join(' | ')}`);
+  constructor() {
+    super(403, 'forbidden', `you don't have permission to access this resource`);
     // Override name for clearer error.class.name in logs.
     Object.defineProperty(this, 'name', { value: 'RoleForbiddenError' });
   }
@@ -31,7 +31,7 @@ export function requireRole(...allowed: UserRoleType[]): MiddlewareHandler {
   return async (c, next) => {
     const auth = getAuth(c);
     if (!auth.role || !allowed.includes(auth.role)) {
-      throw new RoleForbiddenError(allowed);
+      throw new RoleForbiddenError();
     }
     await next();
   };

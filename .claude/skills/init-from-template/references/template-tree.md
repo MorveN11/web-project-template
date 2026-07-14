@@ -41,7 +41,7 @@ web-project-template/
 │   │   ├── vitest.config.ts
 │   │   └── src/
 │   │       ├── auth/
-│   │       │   ├── clerk.ts       ← JWT verify, requireAuth, attachUserLogger
+│   │       │   ├── clerk.ts       ← JWT verify + BAPI getUser → ClerkAuthContext (no JWT custom claims)
 │   │       │   └── role.ts        ← requireRole middleware
 │   │       ├── core/
 │   │       │   ├── handle.ts      ← Result<T> → Hono Response
@@ -92,7 +92,7 @@ web-project-template/
 │           │       ├── guards.tsx          ← <RequireRole>, <IfRole>
 │           │       ├── role-context.tsx    ← useRole, useIsAdmin, useIsClient
 │           │       ├── services/
-│           │       │   └── auth.service.ts  ← getOrSyncMyUserSession (404 → sync retry)
+│           │       │   └── auth.service.ts  ← getOrSyncMyUserSession (single GET /me — api self-syncs)
 │           │       ├── types.ts            ← UserSession, UserRole re-export
 │           │       └── index.ts
 │           └── lib/

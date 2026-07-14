@@ -51,7 +51,7 @@ jobs:
       - name: Verify every commit title
         uses: gsactions/commit-message-checker@v2
         with:
-          pattern: '(?:build|style|docs|doc|refactor|test|fix|perf|chore|feat|ci|revert)(?:\(.+\))?:\s[a-zA-Z].+'
+          pattern: '(?:build|style|docs|doc|refactor|test|fix|perf|chore|feat|ci|revert)(?:\(.+\))?:\s+[a-zA-Z].+'
           flags: 'g'
           excludeDescription: true
           # v2 renamed this input: was `excludeTitlePattern`, now `excludeTitle`.
