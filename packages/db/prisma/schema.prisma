@@ -171,17 +171,42 @@ model Producto {
 }
 
 /// Imagen de la galería de un producto.
+///
+/// Las imágenes se almacenan en un provider externo (Cloudinary por
+/// defecto). El `publicId` es el identificador único en el provider;
+/// el `url` se construye en el api a partir de `publicId` + la env
+/// `CLOUDINARY_CLOUD_NAME` para mantener el modelo provider-agnóstico.
+///
+/// Si en el futuro cambia el provider, `provider` permite discriminar
+/// entre Cloudinary, S3, etc. y tener helpers distintos por fuente.
 model ImagenProducto {
   id         String   @id @default(cuid())
   productoId String
   producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
-  url        String   @db.VarChar(500)
-  alt        String?  @db.VarChar(200)
+  /// ID único del asset en el provider externo (Cloudinary por defecto).
+  /// Forma típica: `chacanos/productos/<slug>-<n>`. Requerido si
+  /// `provider` es cloudinary.
+  publicId   String   @db.VarChar(255)
+  /// Provider de almacenamiento. Default: cloudinary.
+  provider    String   @default("cloudinary") @db.VarChar(40)
+  /// URL canónica completa (CDN + transformaciones por defecto). Opcional
+  /// — si es null, el api la construye on-the-fly con `publicId`.
+  url         String?  @db.VarChar(500)
+  /// Ancho en píxeles (para responsive `srcset`).
+  width       Int?
+  /// Alto en píxeles.
+  height      Int?
+  /// MIME type detectado (image/jpeg, image/webp, etc).
+  mimeType    String?  @db.VarChar(40)
+  /// Peso en bytes (para mostrar en admin).
+  bytes       Int?
+  alt         String?  @db.VarChar(200)
   /// 0 = principal (la que va en card y hero).
-  orden      Int      @default(0)
-  createdAt  DateTime @default(now())
+  orden       Int      @default(0)
+  createdAt   DateTime @default(now())
 
   @@index([productoId, orden])
+  @@index([publicId])
   @@map("imagenes_producto")
 }
 
