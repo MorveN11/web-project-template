@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@hono/zod-openapi':
         specifier: ^1.4.0
-        version: 1.4.0(hono@4.12.29)(zod@4.4.3)
+        version: 1.4.0(hono@4.12.31)(zod@4.4.3)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -44,13 +44,13 @@ importers:
         version: 3.11.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@hono/node-server':
         specifier: ^2.0.8
-        version: 2.0.8(hono@4.12.29)
+        version: 2.0.8(hono@4.12.31)
       '@scalar/hono-api-reference':
         specifier: ^0.11.9
-        version: 0.11.9(hono@4.12.29)
+        version: 0.11.9(hono@4.12.31)
       hono:
-        specifier: ^4.12.29
-        version: 4.12.29
+        specifier: ^4.12.31
+        version: 4.12.31
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -2896,8 +2896,8 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono@4.12.29:
-    resolution: {integrity: sha512-1hNiRjawYrLq/4m3DQQjPGFg0VZkk4RjQJDff/excI6Dm9BiL75qxGrd7/c6YOxPdq6AscP3LiXhQ6fKFC1Waw==}
+  hono@4.12.31:
+    resolution: {integrity: sha512-zJIHFrl6bq3RDd2YusFNCDlM8qUprxKswyi/OPzPyzKDdyBXDqWx8bZlZ7R+saTdSTatUmb3O7K4SspGPaEOQg==}
     engines: {node: '>=16.9.0'}
 
   http-errors@2.0.1:
@@ -5120,29 +5120,29 @@ snapshots:
 
   '@formkit/auto-animate@0.8.4': {}
 
-  '@hono/node-server@1.19.11(hono@4.12.29)':
+  '@hono/node-server@1.19.11(hono@4.12.31)':
     dependencies:
-      hono: 4.12.29
+      hono: 4.12.31
 
-  '@hono/node-server@1.19.14(hono@4.12.29)':
+  '@hono/node-server@1.19.14(hono@4.12.31)':
     dependencies:
-      hono: 4.12.29
+      hono: 4.12.31
 
-  '@hono/node-server@2.0.8(hono@4.12.29)':
+  '@hono/node-server@2.0.8(hono@4.12.31)':
     dependencies:
-      hono: 4.12.29
+      hono: 4.12.31
 
-  '@hono/zod-openapi@1.4.0(hono@4.12.29)(zod@4.4.3)':
+  '@hono/zod-openapi@1.4.0(hono@4.12.31)(zod@4.4.3)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 8.5.0(zod@4.4.3)
-      '@hono/zod-validator': 0.8.0(hono@4.12.29)(zod@4.4.3)
-      hono: 4.12.29
+      '@hono/zod-validator': 0.8.0(hono@4.12.31)(zod@4.4.3)
+      hono: 4.12.31
       openapi3-ts: 4.6.0
       zod: 4.4.3
 
-  '@hono/zod-validator@0.8.0(hono@4.12.29)(zod@4.4.3)':
+  '@hono/zod-validator@0.8.0(hono@4.12.31)(zod@4.4.3)':
     dependencies:
-      hono: 4.12.29
+      hono: 4.12.31
       zod: 4.4.3
 
   '@img/colour@1.1.0':
@@ -5285,7 +5285,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.29.0(zod@3.25.76)':
     dependencies:
-      '@hono/node-server': 1.19.14(hono@4.12.29)
+      '@hono/node-server': 1.19.14(hono@4.12.31)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -5295,7 +5295,7 @@ snapshots:
       eventsource-parser: 3.1.0
       express: 5.2.1
       express-rate-limit: 8.5.2(express@5.2.1)
-      hono: 4.12.29
+      hono: 4.12.31
       jose: 6.2.3
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -5396,13 +5396,13 @@ snapshots:
       '@electric-sql/pglite': 0.4.1
       '@electric-sql/pglite-socket': 0.1.1(@electric-sql/pglite@0.4.1)
       '@electric-sql/pglite-tools': 0.3.1(@electric-sql/pglite@0.4.1)
-      '@hono/node-server': 1.19.11(hono@4.12.29)
+      '@hono/node-server': 1.19.11(hono@4.12.31)
       '@prisma/get-platform': 7.2.0
       '@prisma/query-plan-executor': 7.2.0
       '@prisma/streams-local': 0.1.2
       foreground-child: 3.3.1
       get-port-please: 3.2.0
-      hono: 4.12.29
+      hono: 4.12.31
       http-status-codes: 2.3.0
       pathe: 2.0.3
       proper-lockfile: 4.1.2
@@ -5650,10 +5650,10 @@ snapshots:
 
   '@scalar/helpers@0.9.0': {}
 
-  '@scalar/hono-api-reference@0.11.9(hono@4.12.29)':
+  '@scalar/hono-api-reference@0.11.9(hono@4.12.31)':
     dependencies:
       '@scalar/client-side-rendering': 0.3.2
-      hono: 4.12.29
+      hono: 4.12.31
 
   '@scalar/schemas@0.7.2':
     dependencies:
@@ -7379,7 +7379,7 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono@4.12.29: {}
+  hono@4.12.31: {}
 
   http-errors@2.0.1:
     dependencies:
