@@ -23,7 +23,7 @@
   "dependencies": {
     "@app/db": "workspace:*",
     "@app/shared-types": "workspace:*",
-    "@clerk/backend": "^3.11.4",
+    "@clerk/backend": "^3.14.0",
     "@hono/node-server": "^2.0.8",
     "@scalar/hono-api-reference": "^0.11.9",
     "hono": "^4.12.29",
