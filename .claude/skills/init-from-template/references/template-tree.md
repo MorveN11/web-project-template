@@ -1,5 +1,5 @@
 ---
-description: Tree snapshot of web-project-template (current: Node 24, pnpm 11, Hono 4 + Prisma 7 + Next.js 16 + Tailwind v4 + Biome 2.5 + Clerk + Redis 7 + Docker + GH Actions + Dokploy). One User domain only. Cache layer (L1 in-process Map + L2 Redis) for both Clerk BAPI memo and UserSession DTO. Template-only seed wired into the api container boot.
+description: Tree snapshot of web-project-template (current: Node 24, pnpm 11, Hono 4 + Prisma 7 + Next.js 16 + Tailwind v4 + Biome 2.5 + Clerk + Redis 8 + Docker + GH Actions + Dokploy). One User domain only. Cache layer (L1 in-process Map + L2 Redis) for both Clerk BAPI memo and UserSession DTO. Template-only seed wired into the api container boot.
 ---
 
 # Template tree (current snapshot)
@@ -29,10 +29,9 @@ web-project-template/
 ├── .dockerignore                  ← keep build context small
 ├── apps/
 │   ├── api/
-│   │   ├── .dockerignore
 │   │   ├── .env                   ← gitignored (mirrors .env.example)
 │   │   ├── .env.example           ← includes REDIS_URL; no SEED_ENABLED (seed is template-only)
-│   │   ├── Dockerfile             ← 3 stages: deps → build → runner (slim, no pnpm, ships tsx for the seed step)
+│   │   ├── Dockerfile             ← 4 stages: deps → build + runtime-deps → runner (slim, no pnpm, no tsx)
 │   │   ├── docker-entrypoint.sh   ← migrate deploy → prisma db seed → exec api. Forks delete the seed step before prod.
 │   │   ├── package.runtime.json   ← flat 7-dep manifest for the slim runner (no workspace, no symlinks; pinned exact)
 │   │   ├── package.json
@@ -62,7 +61,6 @@ web-project-template/
 │   │       ├── types/             ← Hono ContextVariableMap augmentation
 │   │       └── index.ts           ← boot: env → request-id → user-logger → access-log → cors → public → business → error handler → serve
 │   └── web/
-│       ├── .dockerignore
 │       ├── .env                   ← gitignored
 │       ├── .env.example
 │       ├── Dockerfile             ← Next.js standalone, distroless/nodejs24-debian12:nonroot runner
@@ -121,7 +119,7 @@ web-project-template/
 │   │   ├── package.json           ← exports: import → dist/, dev → src/. dev: tsc watch. runtime: Prisma 7, @prisma/adapter-pg, pg.
 │   │   ├── tsconfig.json
 │   │   ├── tsconfig.build.json    ← tsc → dist/ (rootDir omitted, includes src/ + generated/)
-│   │   ├── prisma.config.js       ← Prisma 7: plain JS so slim runner can invoke via node (no tsx). seed: 'tsx prisma/seed.ts'
+│   │   ├── prisma.config.js       ← Prisma 7: plain JS so slim runner can invoke via node (no tsx). seed: 'node apps/api/dist/seed.js'
 │   │   ├── prisma/
 │   │   │   ├── schema.prisma      ← provider=prisma-client-js. Single model: User. Replace at fork time.
 │   │   │   ├── migrations/
@@ -144,6 +142,7 @@ web-project-template/
 ├── biome.json                     ← SINGLE source of lint + format for every package
 ├── pnpm-workspace.yaml            ← workspaces + overrides (utf-8-validate peer fix)
 ├── pnpm-lock.yaml                 ← single root lockfile (shared-workspace-lockfile=true default)
+├── .npmrc                         ← public-hoist-pattern[]=* — root package.json is the single source of shared versions. Both Dockerfiles COPY it so the image's node_modules layout matches local dev.
 ├── tsconfig.base.json             ← shared TS config (every package extends it)
 ├── package.json                   ← name, version, description, scripts, engines, deps (zod, @hono/zod-openapi), devDeps (biome, ts, tsx, vitest, @types/node, esbuild)
 ├── release.config.mjs
@@ -187,10 +186,12 @@ Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. O
 ## Slim runtime model (api)
 
 - `apps/api/Dockerfile` builds the api as a 1.1MB esbuild bundle. The api `build` script also bundles `packages/db/prisma/seed.ts` into `apps/api/dist/seed.js` so the seed can run as `node apps/api/dist/seed.js` (no `tsx` at runtime). Workspace packages `@app/db` and `@app/shared-types` are pre-transpiled to `dist/` in the build stage; their `exports` field maps `import` to `dist/` and `dev` to `src/` (so `pnpm dev` with `tsx --conditions=dev` keeps using source).
-- Runner has **no pnpm, no corepack, no pino-pretty, no tsx**. Install is `npm install --omit=dev` from `apps/api/package.runtime.json` (6 deps, pinned exact). The seed runs as a bundled JS — workspace deps are inlined by esbuild at build time, so node_modules only needs the runtime npm packages.
+- Runner has **no pnpm, no corepack, no pino-pretty, no tsx**. Install is `npm install --omit=dev` from `apps/api/package.runtime.json` (7 deps, pinned exact — keep them in sync with `packages/db` on every Prisma bump). It runs in its own `runtime-deps` stage so its cache key is that manifest alone, not the app source. The seed runs as a bundled JS — workspace deps are inlined by esbuild at build time, so node_modules only needs the runtime npm packages.
+- The runner never runs `chown -R /app`: ownership is set inline via `COPY --from=runtime-deps --chown=api:nodejs`, which is free. `node_modules` must be writable by `api` because the prisma CLI does a writability preflight on `@prisma/engines` before every command.
+- Only `schema.prisma` + `migrations/` are copied into the image — not the whole `prisma/` dir, which would drag in the unused `seed.ts` source.
 - Migration runs via `node node_modules/prisma/build/index.js migrate deploy --schema=… --config=prisma.config.js`.
 - Seed runs right after migrate: `node node_modules/prisma/build/index.js db seed --schema=… --config=…` → which internally invokes `node apps/api/dist/seed.js`.
-- Image size: ~1.15 GB. Cold boot to `api listening`: ~2 s.
+- Image size: ~780 MB. Cold boot to `api listening`: ~2 s.
 
 ## Slim runtime model (web)
 

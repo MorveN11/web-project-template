@@ -40,7 +40,7 @@ pnpm dev
 | API docs | **@scalar/hono-api-reference** — `/docs` page with live Try-It-Out + JWT auth UI |
 | Webhooks | **Svix** (Clerk's webhook infra) — verified via `verifyWebhook()` from `@clerk/backend/webhooks` |
 | Database | **Postgres 18** (Docker compose for dev + prod) |
-| Cache | **Redis 7** (Docker compose) — L2 cache for Clerk BAPI user memo (`apps/api/src/cache/clerk-user.ts`). Optional — api degrades to in-process L1 when Redis is unreachable. |
+| Cache | **Redis 8** (Docker compose) — L2 cache for Clerk BAPI user memo (`apps/api/src/cache/clerk-user.ts`). Optional — api degrades to in-process L1 when Redis is unreachable. |
 | CI/CD | **GitHub Actions** (PR gate + per-branch release + Dokploy webhook) |
 | Format/lint | **Biome** (single tool, replaces eslint + prettier, one config at root) |
 

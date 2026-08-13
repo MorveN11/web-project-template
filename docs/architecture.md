@@ -154,25 +154,26 @@ Browser
 
 ### Prisma 7 adapter pattern
 
-Prisma 7 removed `datasource.url` from `schema.prisma`. Connection URL lives in `packages/db/prisma.config.ts`:
+Prisma 7 removed `datasource.url` from `schema.prisma`. Connection URL lives in `packages/db/prisma.config.js` — plain JS, not TS, so the slim api image can invoke the prisma CLI with bare `node` (no tsx/ts-node at runtime):
 
-```ts
-// prisma.config.ts
+```js
+// prisma.config.js
 import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is required (set it in .env or the shell)');
-}
+// `process.env` directly instead of prisma's `env()` helper: the helper THROWS
+// on a missing var, and `prisma generate` runs in the Docker build stage where
+// DATABASE_URL isn't in scope yet. Migrate/studio still error on their own.
+const database_url = process.env.DATABASE_URL;
 
 export default defineConfig({
   schema: './prisma/schema.prisma',
   migrations: {
-    seed: 'tsx prisma/seed.ts',
+    // esbuild bundles packages/db/prisma/seed.ts into apps/api/dist/seed.js at
+    // build time, so the runtime image needs neither tsx nor the workspace deps.
+    seed: 'node apps/api/dist/seed.js',
   },
-  datasource: {
-    url: process.env.DATABASE_URL,
-  },
+  ...(database_url ? { datasource: { url: database_url } } : {}),
 });
 ```
 
