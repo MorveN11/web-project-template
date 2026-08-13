@@ -83,15 +83,16 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_QUERIES: ${LOG_QUERIES:-false}
       # Two deployment modes:
-      #   1. Self-contained stack: set DATABASE_URL to the in-network
-      #      postgres service URL (matches the postgres service below),
-      #      leave DIRECT_URL empty → migrations fall back to DATABASE_URL
+      #   1. Self-contained stack (`pnpm compose:prod`): default below
+      #      points at the in-network `postgres` service. Override
+      #      DATABASE_URL in .env if you want a different host. Leave
+      #      DIRECT_URL empty → migrations fall back to DATABASE_URL
       #      via packages/db/prisma.config.js.
       #   2. Neon (managed): set DATABASE_URL to the -pooler endpoint and
-      #      DIRECT_URL to the direct (non-pooler) endpoint. The `postgres`
-      #      service below is unused but harmless (no host port bound).
-      # Both modes are set via host .env (Dokploy injects them).
-      DATABASE_URL: ${DATABASE_URL}
+      #      DIRECT_URL to the direct (non-pooler) endpoint in .env or
+      #      Dokploy's runtime env. The `postgres` service below is
+      #      unused but harmless (no host port bound).
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-web_project_template}?schema=public}
       DIRECT_URL: ${DIRECT_URL:-}
       # Same hard-pin as DATABASE_URL: redis URL must use the compose
       # service name. Without this, a host-side REDIS_URL leaks in and

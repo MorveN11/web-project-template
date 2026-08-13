@@ -23,11 +23,16 @@
 // Migrations prefer `DIRECT_URL` when set so Neon deployments hit
 // the direct endpoint (Neon's pooler rejects DDL transactions).
 // Docker dev leaves DIRECT_URL empty → falls back to DATABASE_URL.
+// When BOTH are unset, `datasource.url` is omitted entirely so
+// `prisma generate` (DB-less) keeps working in the Docker build stage.
+// `migrate deploy` / `db push` / `studio` will then fail with Prisma's
+// own "datasource.url is required" — by that point, runtime env in
+// the container or .env in the dev shell should provide it.
 
 import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
 
-const database_url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+const database_url = process.env.DIRECT_URL || process.env.DATABASE_URL;
 
 export default defineConfig({
   schema: './prisma/schema.prisma',
