@@ -1,12 +1,15 @@
 // Hono boot. Order: env (already parsed at import time) → logger →
-// request-id middleware → CORS → public mounts → auth gate →
-// v1 mounts → 404 + error handler → graceful shutdown.
+// request-id middleware → secureHeaders → CORS → public mounts →
+// auth gate → v1 mounts → 404 + error handler → graceful shutdown.
 
 import { randomUUID } from 'node:crypto';
 import { serve } from '@hono/node-server';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
+import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
+import { secureHeaders } from 'hono/secure-headers';
+import { timing } from 'hono/timing';
 import { attachUserLogger } from './auth/clerk';
 import { attachPrismaLogging } from './db/prisma-logging';
 import { devRoutes } from './dev';
@@ -16,6 +19,7 @@ import { userRoutes } from './features/users';
 import { handleClerkWebhook } from './features/webhooks';
 import { logger, withRequest } from './logger';
 import { bearerSecurity } from './openapi/security';
+import { webhookAndDevRateLimiter } from './rate-limit';
 // Side-effect import: registers Hono context-variable augmentation
 // (`log`, `request_id`). Required for typed `c.set` / `c.get` calls below.
 import './types/hono-context';
@@ -69,6 +73,47 @@ app.use('*', async (c, next) => {
   );
 });
 
+// Secure headers (HSTS, X-Content-Type-Options, etc). Mounted BEFORE
+// CORS so the response headers are present even on preflight rejections.
+// HSTS only fires when the request came over HTTPS — Hono checks the
+// protocol; in dev (http) the header is skipped.
+app.use(
+  '*',
+  secureHeaders({
+    strictTransportSecurity: env.NODE_ENV === 'production' ? 'max-age=63072000; includeSubDomains; preload' : false,
+    contentSecurityPolicy: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    crossOriginOpenerPolicy: 'same-origin',
+    crossOriginResourcePolicy: 'same-origin',
+    xFrameOptions: 'DENY',
+    xContentTypeOptions: 'nosniff',
+    permissionsPolicy: {
+      camera: [],
+      microphone: [],
+      geolocation: [],
+      payment: [],
+      usb: [],
+    },
+  }),
+);
+
+// Server-Timing header on every response (the access log line above
+// already includes the same data; the header is for browser dev-tools
+// and any external probe that doesn't parse JSON logs).
+app.use('*', timing());
+
+// CORS — runs after secureHeaders so preflight rejections still carry
+// the security headers.
 app.use(
   '*',
   cors({
@@ -79,12 +124,20 @@ app.use(
   }),
 );
 
+// Body size limit. 100 KB is enough for every business endpoint in
+// this template; webhooks are exempt (mounted before this app.use in
+// the route-level guards below, with their own larger ceiling).
+// Stops a 100 MB upload from blocking the event loop on the slow path.
+app.use('*', bodyLimit({ maxSize: 100 * 1024 }));
+
 // Public endpoints. No auth required.
 app.route('/health', healthRoutes);
 // Clerk webhook receiver — signature verification is the auth; no
 // `requireAuth` / `requireRole` middleware in front of this. Mounted
 // before the business routers so the raw-body signature check runs
-// before any OpenAPIHono route resolution.
+// before any OpenAPIHono route resolution. Rate-limited to keep a
+// flood of bogus signatures from burning CPU.
+app.use('/webhooks/clerk', webhookAndDevRateLimiter);
 app.post('/webhooks/clerk', (c) => handleClerkWebhook(c.req.raw));
 app.get('/', (c) =>
   c.json({
@@ -122,7 +175,9 @@ if (env.NODE_ENV !== 'production') {
   // (the outer if-gate above is the only barrier — the handler also
   // re-checks NODE_ENV as defense in depth). Callers mint a Clerk
   // session JWT by email for testing without copy/pasting from the
-  // web app's cookie panel.
+  // web app's cookie panel. Same rate-limit budget as the webhook so
+  // dev sessions can't accidentally hammer the api.
+  app.use('/dev/*', webhookAndDevRateLimiter);
   app.route('/dev', devRoutes);
 }
 

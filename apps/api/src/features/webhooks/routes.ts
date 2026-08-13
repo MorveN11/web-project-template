@@ -24,6 +24,8 @@
 
 import { database } from '@app/db';
 import { verifyWebhook, type WebhookEvent } from '@clerk/backend/webhooks';
+import { invalidateClerkUserCached } from '@/cache/clerk-user';
+import { invalidateUserSessionCached } from '@/cache/user-session';
 import { UserRepository } from '@/features/users/repository';
 import { logger } from '@/logger';
 import { UserWebhookService } from './service';
@@ -70,6 +72,22 @@ export async function handleClerkWebhook(request: Request): Promise<Response> {
         }
         const outcome = await service.handleDeleted(id);
         log.info({ outcome, clerkId: id }, 'webhook: handled');
+        return new Response('OK', { status: 200 });
+      }
+
+      case 'session.revoked': {
+        // Stateless JWT verify doesn't consult a revocation list, so
+        // a revoked token stays valid until its own `exp` (default 60 s)
+        // regardless. We still drop both caches for the user so that if
+        // the api ever grows a revocation-aware auth path, the cached
+        // DTO / BAPI user can't be used to bypass it.
+        const userId = (evt.data as { user_id?: string }).user_id;
+        if (userId) {
+          await Promise.all([invalidateUserSessionCached(userId), invalidateClerkUserCached(userId)]);
+          log.info({ clerkId: userId }, 'webhook: session revoked, caches dropped');
+        } else {
+          log.warn('webhook: session.revoked without user_id; ignoring');
+        }
         return new Response('OK', { status: 200 });
       }
 

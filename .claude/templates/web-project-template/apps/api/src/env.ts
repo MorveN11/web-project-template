@@ -18,6 +18,12 @@ const EnvSchema = z.object({
     message: 'DATABASE_URL must be a postgres connection string',
   }),
 
+  // Redis URL for the in-process L1 + Redis L2 cache that wraps
+  // Clerk BAPI calls. Optional — when unset, the api runs without
+  // Redis (cache degrades to in-process L1 only, single-instance
+  // friendly).
+  REDIS_URL: z.url().default('redis://localhost:6379'),
+
   CORS_ORIGIN: z.string().default('http://localhost:3000').transform(csv),
 
   CLERK_SECRET_KEY: z.string().min(1),
@@ -35,6 +41,20 @@ const EnvSchema = z.object({
   LOG_QUERIES: z
     .string()
     .optional()
+    .transform((v) => v === 'true'),
+
+  // Boot-time seed flag. `packages/db/prisma/seed.ts` runs at api
+  // container start (after `prisma migrate deploy`) and creates one
+  // admin user (`admin@template.test`) on an empty DB. Default `true`
+  // so every fresh deployment gets a known-good account to validate
+  // the sign-in / read pipeline end-to-end. Set to `false` to disable.
+  // The api process itself never reads this value; it exists in env.ts
+  // so the validation table is the single source of truth for env
+  // vars. The seed script reads `process.env` directly because it runs
+  // in prisma's CLI context.
+  SEED_ENABLED: z
+    .string()
+    .default('true')
     .transform((v) => v === 'true'),
 });
 

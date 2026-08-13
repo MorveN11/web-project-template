@@ -1,21 +1,24 @@
-// Clerk middleware. Public routes skip the auth gate; everything else is
-// protected via `auth.protect()`. `createRouteMatcher` is deprecated in
-// @clerk/nextjs v7+, so we route-match inline against the pathname
-// inside the middleware handler.
+// Clerk middleware. The single rule: anything under `/app` requires auth,
+// everything else is public. Adding a new private page = drop it under
+// `apps/web/src/app/(authenticated)/app/<feature>/` — no edit here.
 //
-// Pinned to Next.js 16.2.3 (not 16.2.4+) because Turbopack on 16.2.4+
-// emits an empty middleware-manifest.json for `proxy.ts`
-// (vercel/next.js#93328), so the proxy never runs and Clerk's `auth()`
-// reports "clerkMiddleware() not detected". Bump to 16.2.x once that
-// issue ships a fix.
+// `/auth` is public because Clerk's SignIn/SignUp routes live there;
+// `auth.protect()` would otherwise loop on `?redirect_url=…`.
+// `/api/webhooks` is public so Clerk can post webhooks without a token.
+// `/health` is the liveness probe (no auth required).
+//
+// Filename: `proxy.ts` — the Next.js 16 alias for the Edge middleware
+// file. `middleware.ts` is the conventional pre-16 name. We use the
+// new alias to stay aligned with what Next 16 documents going forward.
+// Next.js issue (vercel/next.js#93328) and rename back to `proxy.ts`
+// when fixed upstream.
 
 import { clerkMiddleware } from '@clerk/nextjs/server';
 
-// Public prefixes — `/sign-in` and `/sign-up` MUST live here, otherwise
-// `auth.protect()` fires on Clerk's own auth pages and the browser
-// loops on `?redirect_url=…` (Clerk re-encodes the current URL on
-// every redirect, producing the runaway nesting seen in bug reports).
-const PUBLIC_PREFIXES = ['/auth', '/sign-in', '/sign-up', '/api/webhooks'];
+const PRIVATE_PREFIX = '/app';
+
+// Opt-in exceptions: public even though Clerk might otherwise redirect.
+const PUBLIC_PREFIXES = ['/auth', '/api/webhooks'];
 const PUBLIC_EXACT = new Set(['/', '/health']);
 
 function isPublic(pathname: string): boolean {
@@ -24,7 +27,10 @@ function isPublic(pathname: string): boolean {
 }
 
 export default clerkMiddleware(async (auth, request) => {
-  if (!isPublic(request.nextUrl.pathname)) {
+  const { pathname } = request.nextUrl;
+
+  // Default to public. The only thing that flips to private is the prefix.
+  if (pathname.startsWith(PRIVATE_PREFIX) && !isPublic(pathname)) {
     await auth.protect();
   }
 });

@@ -53,6 +53,10 @@ jobs:
     outputs:
       api: ${{ steps.filter.outputs.api }}
       web: ${{ steps.filter.outputs.web }}
+      # Top-level config changes force both services to rebuild even when
+      # neither apps/api nor apps/web changed (package.json, biome.json,
+      # .github/**, docker-compose, .env*.example, etc.).
+      config: ${{ steps.filter.outputs.config }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -82,9 +86,17 @@ jobs:
     steps:
       - name: Should this service build?
         id: should_run
+        env:
+          # Service's own filter (api|web). Top-level config changes force
+          # both services to rebuild even when neither app dir changed.
+          SERVICE: ${{ needs.changes.outputs[matrix.service.id] }}
+          CONFIG: ${{ needs.changes.outputs.config }}
         run: |
-          SHOULD_RUN="${{ needs.changes.outputs[matrix.service.id] }}"
-          echo "should_run=$SHOULD_RUN" >>"$GITHUB_OUTPUT"
+          if [ "$SERVICE" = "true" ] || [ "$CONFIG" = "true" ]; then
+            echo "should_run=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >>"$GITHUB_OUTPUT"
+          fi
 
       - name: Checkout
         if: steps.should_run.outputs.should_run == 'true'

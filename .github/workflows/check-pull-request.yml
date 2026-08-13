@@ -51,7 +51,10 @@ jobs:
       - name: Verify every commit title
         uses: gsactions/commit-message-checker@v2
         with:
-          pattern: '(?:build|style|docs|doc|refactor|test|fix|perf|chore|feat|ci|revert)(?:\(.+\))?:\s+[a-zA-Z].+'
+          # Subject may start with any non-whitespace char (backtick, dash,
+          # digit, accented letter…) — `[a-zA-Z]` rejected valid commits
+          # like "fix(ui): `useRole()` returns null".
+          pattern: '(?:build|style|docs|doc|refactor|test|fix|perf|chore|feat|ci|revert)(?:\(.+\))?:\s+\S.+'
           flags: 'g'
           excludeDescription: true
           # v2 renamed this input: was `excludeTitlePattern`, now `excludeTitle`.

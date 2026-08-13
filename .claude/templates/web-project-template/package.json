@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "Minimal web project template. Hono + Prisma + Postgres API, Next.js + shadcn + Clerk web, pnpm workspaces. Extend with features as the project grows.",
-  "packageManager": "pnpm@11.10.0",
+  "packageManager": "pnpm@11.20.0",
   "engines": {
     "node": ">=24",
     "pnpm": ">=11"
@@ -13,9 +13,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.3",
-    "@types/node": "^26.1.1",
-    "tsx": "^4.23.0",
+    "@biomejs/biome": "2.5.8",
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },

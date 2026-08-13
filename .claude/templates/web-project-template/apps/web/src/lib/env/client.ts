@@ -10,12 +10,18 @@ export const env = createEnv({
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1, 'CLERK publishable key is required').default('pk_test_123'),
     NEXT_PUBLIC_CLERK_SIGN_IN_URL: z.string().default('/auth/iniciar-sesion'),
     NEXT_PUBLIC_CLERK_SIGN_UP_URL: z.string().default('/auth/registro'),
+    // Client-side log level. `debug` in dev, `warn` in prod by default —
+    // debug/info logs ship input shapes that don't belong in prod
+    // bundles. Override per-env via the build-time NEXT_PUBLIC_LOG_LEVEL
+    // (it gets inlined into the JS, so it must be set at build time).
+    NEXT_PUBLIC_LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('warn'),
   },
   runtimeEnv: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
     NEXT_PUBLIC_CLERK_SIGN_UP_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL,
+    NEXT_PUBLIC_LOG_LEVEL: process.env.NEXT_PUBLIC_LOG_LEVEL,
   },
   emptyStringAsUndefined: true,
 });

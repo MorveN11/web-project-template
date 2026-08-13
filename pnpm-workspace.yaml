@@ -12,6 +12,12 @@ allowBuilds:
   sharp: true
   utf-8-validate: true
 
+minimumReleaseAgeExclude:
+  - '@scalar/client-side-rendering@0.3.7'
+  - '@scalar/hono-api-reference@0.11.14'
+  - '@scalar/types@0.18.0'
+  - hono@4.13.2
+
 # Native build allowlist. Add any package whose postinstall compiles native code.
 onlyBuiltDependencies:
   - "@clerk/shared"
