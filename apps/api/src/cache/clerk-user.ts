@@ -57,13 +57,13 @@ function l1Del(sub: string): void {
   l1.delete(sub);
 }
 
-// L2 key prefix. Versioned so a future schema change can drop the
-// whole namespace with one `DEL clerk:user:v1:*`. Environment prefix
-// (`prod:` / `dev:`) keeps dev/staging/prod from colliding on a
-// shared Redis instance — Clerk user IDs are only globally unique
-// within a single Clerk instance, not across instances.
-const L2_KEY = (sub: string) => `${envPrefix()}:clerk:user:v1:${sub}`;
-const envPrefix = () => (env.NODE_ENV === 'production' ? 'prod' : 'dev');
+// L2 key. Versioned so a future schema change can drop the whole
+// namespace with one `DEL clerk:user:v1:*`. The ioredis client
+// already prepends `${REDIS_KEY_PREFIX}${NODE_ENV}-`, so the env
+// isolation is handled at the client layer — no per-key prefix here.
+// Clerk user IDs are only globally unique within a single Clerk
+// instance, not across instances.
+const L2_KEY = (sub: string) => `clerk:user:v1:${sub}`;
 
 /**
  * Cached Clerk BAPI fetch. Lookup order: L1 → L2 → Clerk. Writes

@@ -47,6 +47,13 @@
 - **Gitflow is `dev → test → main → dev`**. Features fork from `dev`, PR into `test`, periodic release `test → main`, then sync `main → dev`. Never PR a `feature/*` directly into `main`.
 - **Production DB may be Neon.** Set `DATABASE_URL` to the `-pooler` endpoint and `DIRECT_URL` to the direct endpoint (Neon rejects DDL on the pooler). Docker dev leaves `DIRECT_URL` empty. Runtime adapter auto-selects in `packages/db/src/client.ts` by URL substring (`.neon.tech` / `-pooler.`) — no `DATABASE_PROVIDER` flag.
 
+### Redis key naming (required convention for every fork)
+- Every fork MUST namespace its Redis keys via ioredis `keyPrefix` on the client (see `apps/api/src/cache/redis.ts`). The client computes the prefix as `${REDIS_KEY_PREFIX}${env.NODE_ENV}-` so dev/staging/prod never collide, even on shared Redis.
+- `REDIS_KEY_PREFIX` defaults to the app name (`web-project-template-`). Override to your fork's project name when you fork the template — e.g. Chacanos uses `REDIS_KEY_PREFIX=chacanos-`.
+- Override per-environment ONLY if api + worker of the same fork point at the same Redis (e.g. `REDIS_KEY_PREFIX=chacanos-api-` for api, `chacanos-worker-` for worker) — DON'T bypass the NODE_ENV join.
+- The high-level helpers (`redisGet` / `redisSet` / `redisDel`) take unprefixed keys; ioredis prepends the joined prefix transparently. The per-cache `L2_KEY` factories in `cache/clerk-user.ts` + `cache/user-session.ts` no longer prepend `prod:` / `dev:` — env isolation is handled at the client layer.
+- Resulting key shape: `<app-name>-<env>-<cache-key>`, e.g. `chacanos-development-user:session:v1:<clerkId>`, `chacanos-production-clerk:user:v1:<sub>`.
+
 ### Anti-patterns to avoid
 - Per-feature service that talks to `database` directly. The repository facade isolates schema details from business rules.
 - Fat services that embed business rules. Move decisions into the entity or a small domain helper.

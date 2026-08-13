@@ -10,6 +10,19 @@
 // (`createClient({url})` infers RESP2; the default-typed alias is
 // RESP3 — TS rejects every assign-back). ioredis is a concrete class
 // with stable types — no generic dance, no `any` escape hatch.
+//
+// Key namespacing: every fork MUST set `keyPrefix: '<app-name>-<env>-'`
+// so Redis keys can't collide when (a) multiple forks share a cluster
+// OR (b) multiple environments (dev/staging/prod) of one fork point at
+// the same Redis. The prefix is computed at client-construct time
+// as `${REDIS_KEY_PREFIX}${env.NODE_ENV}-`:
+//   - REDIS_KEY_PREFIX defaults to the app name (`web-project-template-`).
+//   - NODE_ENV is required (validated by env.ts) — the resulting
+//     keys look like `web-project-template-development-user:session:v1:<id>`
+//     locally and `web-project-template-production-user:session:v1:<id>`
+//     in prod.
+// The helpers (`redisGet` / `Set` / `Del`) take unprefixed keys;
+// ioredis prepends the joined prefix transparently.
 
 import Redis from 'ioredis';
 import { env } from '../env';
@@ -37,6 +50,11 @@ export async function getRedis(): Promise<Redis | null> {
       lazyConnect: true,
       // Cap retries so a flaky network doesn't pin the process forever.
       maxRetriesPerRequest: 2,
+      // Per-app + per-env namespace. See file header — required
+      // convention for every fork. Joins REDIS_KEY_PREFIX +
+      // NODE_ENV so dev/staging/prod never share keys even when
+      // they point at the same Redis cluster.
+      keyPrefix: `${env.REDIS_KEY_PREFIX}${env.NODE_ENV}-`,
     });
 
     c.on('error', (err) => {
@@ -87,8 +105,7 @@ export async function redisGet(key: string): Promise<string | null> {
 }
 
 /**
- * Set a key with TTL (seconds). Returns `false` on Redis error so
- * callers can log without throwing. `set` returns `null` on success
+ * Set a key with TTL (seconds). `set` returns `null` on success
  * in ioredis (vs the OK string in node-redis); we coerce to boolean.
  */
 export async function redisSet(key: string, value: string, ttlSeconds: number): Promise<boolean> {

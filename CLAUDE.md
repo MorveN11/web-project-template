@@ -23,6 +23,7 @@ The scaffold ships exactly one domain entity (`User`, synced from Clerk). Forks 
 | Env — web | `apps/web/src/lib/env/{client,server}.ts` | `NEXT_PUBLIC_*` in client, secrets in server. |
 | Auth | `apps/web/src/features/auth/` | `getCurrentSession()` server-side; `useRole()`/`useIsAdmin()` client-side (UI hint only, never a security boundary). |
 | Route protection | `apps/web/src/proxy.ts` | Anything under `/app` is private; everything else is public. Add private pages under `app/(authenticated)/app/<feature>/`. |
+| Redis cache | `apps/api/src/cache/` | ioredis client (`redis.ts`) namespaced via `${REDIS_KEY_PREFIX}${NODE_ENV}-` (default `web-project-template-<env>-`). L1 in-proc Map + L2 Redis memo around Clerk BAPI. |
 | Biome config | `biome.json` (root) | NEVER create a per-package `biome.json`. |
 | Lockfile | `pnpm-lock.yaml` (root) | NEVER set `shared-workspace-lockfile: false`. |
 
@@ -95,4 +96,5 @@ Canonical list + descriptions: [`.github/SECRETS.md`](.github/SECRETS.md).
 
 - Replace the `User`-only domain with the real entities. Don't reintroduce placeholder features.
 - The UI ships `lang="es"` + Spanish auth routes + Clerk `esES` localization. Switch both if the product isn't Spanish.
+- **Set `REDIS_KEY_PREFIX` to `<app-name>-`** in `apps/api/.env` (or via Dokploy env injection). Every fork MUST namespace its Redis keys so forks sharing a cluster don't collide. The ioredis `keyPrefix` option reads this env (default `web-project-template-`) AND joins it with `NODE_ENV` so dev/staging/prod are isolated automatically.
 - Rename in one pass: `package.json` `name`, both compose `name:` + `POSTGRES_DB` + network names, `.env.example` image names, api `index.ts` service/OpenAPI titles, `docker-compose*.yml` image tags, and the `name:` fields in the release workflow matrices.

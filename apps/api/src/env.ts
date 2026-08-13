@@ -36,6 +36,13 @@ const EnvSchema = z.object({
   // friendly).
   REDIS_URL: z.url().default('redis://localhost:6379'),
 
+  // Redis key prefix. Required convention for every fork: namespace
+  // your cache keys so forks sharing a Redis cluster don't collide.
+  // Default is the project name (`web-project-template-`). Override
+  // per-environment if api + worker of one fork point at the same
+  // Redis instance.
+  REDIS_KEY_PREFIX: z.string().default('web-project-template-'),
+
   CORS_ORIGIN: z.string().default('http://localhost:3000').transform(csv),
 
   CLERK_SECRET_KEY: z.string().min(1),

@@ -12,16 +12,16 @@
 // `user.deleted` so external edits propagate within milliseconds
 // instead of waiting out the 30s TTL.
 
-import { env } from '../env';
 import type { UserDto } from '../features/users/mappers';
 import { logger } from '../logger';
 import { redisDel, redisGet, redisSet } from './redis';
 
 const USER_SESSION_TTL_SECONDS = 30;
-// Versioned key prefix — bump on schema change to drop the whole
-// namespace in one Redis `DEL`. Environment prefix (`prod:` / `dev:`)
-// keeps dev/staging/prod from colliding on a shared Redis instance.
-const L2_KEY = (clerkId: string) => `${env.NODE_ENV === 'production' ? 'prod' : 'dev'}:user:session:v1:${clerkId}`;
+// Versioned key — bump on schema change to drop the whole namespace
+// in one Redis `DEL`. The ioredis client already prepends
+// `${REDIS_KEY_PREFIX}${NODE_ENV}-`, so env isolation is handled at
+// the client layer — no per-key prefix here.
+const L2_KEY = (clerkId: string) => `user:session:v1:${clerkId}`;
 
 /**
  * Fetch the cached DTO. Returns `null` on miss OR on Redis error —
