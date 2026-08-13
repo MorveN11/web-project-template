@@ -18,6 +18,18 @@ const EnvSchema = z.object({
     message: 'DATABASE_URL must be a postgres connection string',
   }),
 
+  // Direct (non-pooler) postgres URL. Used by `prisma migrate` —
+  // Neon deployments need it because the pooler endpoint rejects
+  // DDL transactions. Optional: docker dev falls back to
+  // DATABASE_URL (handled in `packages/db/prisma.config.js`).
+  // Empty string is allowed for the same reason.
+  DIRECT_URL: z
+    .string()
+    .default('')
+    .refine((s) => s === '' || s.startsWith('postgres') || s.startsWith('postgresql'), {
+      message: 'DIRECT_URL must be a postgres connection string',
+    }),
+
   // Redis URL for the in-process L1 + Redis L2 cache that wraps
   // Clerk BAPI calls. Optional — when unset, the api runs without
   // Redis (cache degrades to in-process L1 only, single-instance

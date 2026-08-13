@@ -45,6 +45,7 @@
 - **Conventional commits only** — `feat`, `fix`, `chore`, `docs`, etc. CI rejects non-conforming titles/commits.
 - **Never put `NEXT_PUBLIC_API_URL` in root `.env`.** It's a build-time-inlined var; the compose file hardcodes `http://api:8080` for Docker. The web's `client.ts` provides the dev default. The full "Docker" section in README explains why.
 - **Gitflow is `dev → test → main → dev`**. Features fork from `dev`, PR into `test`, periodic release `test → main`, then sync `main → dev`. Never PR a `feature/*` directly into `main`.
+- **Production DB may be Neon.** Set `DATABASE_URL` to the `-pooler` endpoint and `DIRECT_URL` to the direct endpoint (Neon rejects DDL on the pooler). Docker dev leaves `DIRECT_URL` empty. Runtime adapter auto-selects in `packages/db/src/client.ts` by URL substring (`.neon.tech` / `-pooler.`) — no `DATABASE_PROVIDER` flag.
 
 ### Anti-patterns to avoid
 - Per-feature service that talks to `database` directly. The repository facade isolates schema details from business rules.

@@ -4,7 +4,7 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx watch --conditions=dev --env-file=.env src/index.ts",
-    "build": "pnpm --filter @app/db generate && pnpm --filter @app/shared-types --filter @app/db build && esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.js --sourcemap --external:@prisma/client --external:.prisma/* --external:@prisma/adapter-pg --external:pg --external:ioredis --external:pino --external:pino-pretty && esbuild ../../packages/db/prisma/seed.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/seed.js --external:@prisma/client --external:.prisma/* --external:@prisma/adapter-pg --external:pg --external:ioredis",
+    "build": "pnpm --filter @app/db generate && pnpm --filter @app/shared-types --filter @app/db build && esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.js --sourcemap --external:@prisma/client --external:.prisma/* --external:@prisma/adapter-neon --external:@neondatabase/serverless --external:@prisma/adapter-pg --external:pg --external:ioredis --external:pino --external:pino-pretty && esbuild ../../packages/db/prisma/seed.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/seed.js --external:@prisma/client --external:.prisma/* --external:@prisma/adapter-neon --external:@neondatabase/serverless --external:@prisma/adapter-pg --external:pg --external:ioredis",
     "start": "node --enable-source-maps dist/index.js",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "lint": "biome lint .",

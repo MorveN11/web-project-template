@@ -62,6 +62,16 @@ Placeholders to replace before anything runs:
 - `CLERK_SECRET_KEY` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` — from your Clerk dashboard.
 - `DATABASE_URL` — defaults to localhost (matches `pnpm compose`). Update when deploying.
 
+### Production database (Neon)
+
+For Neon deployments, set `DATABASE_URL` to the `-pooler` endpoint and
+`DIRECT_URL` to the direct (non-pooler) endpoint. `prisma migrate` uses
+`DIRECT_URL` because the pooler rejects DDL transactions. Docker dev leaves
+`DIRECT_URL` empty — `packages/db/prisma.config.js` falls back to `DATABASE_URL`.
+The runtime adapter (`@prisma/adapter-neon`) auto-selects when `DATABASE_URL`
+matches `.neon.tech` or `-pooler.`; otherwise the local `@prisma/adapter-pg`
+path runs unchanged.
+
 > `NEXT_PUBLIC_API_URL` is intentionally **not** in root `.env` (the compose file hardcodes the in-container URL for Docker). `apps/web/src/lib/env/client.ts` provides the dev default. Override in `apps/web/.env` only if your local api runs on a different port.
 
 ### Local infra

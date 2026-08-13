@@ -60,7 +60,8 @@ These are set in `docker-compose.prod.yml` (or your deployment platform's secret
 | Variable | Notes |
 | --- | --- |
 | `CLERK_SECRET_KEY` | Required by the api at runtime to verify Clerk JWTs. Set in the host `.env` for `pnpm compose:prod`, or as a runtime env in your deploy target (Dokploy, ECS, etc.). |
-| `DATABASE_URL` | Postgres connection string for the api runtime. Set in the host `.env`. |
+| `DATABASE_URL` | Postgres connection string for the api runtime. Set in the host `.env`. For Neon, use the `-pooler` endpoint. |
+| `DIRECT_URL` | Direct (non-pooler) postgres URL used by `prisma migrate`. Required for Neon (the pooler rejects DDL transactions). Leave empty for docker dev / self-contained compose stack. Set in the host `.env` or the deploy target's runtime env. |
 
 CI never needs these because it doesn't run the api or connect to the database at runtime — only typecheck, test, and build.
 

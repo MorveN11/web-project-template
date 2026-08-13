@@ -33,7 +33,7 @@ web-project-template/
 │   │   ├── .env.example           ← includes REDIS_URL; no SEED_ENABLED (seed is template-only)
 │   │   ├── Dockerfile             ← 4 stages: deps → build + runtime-deps → runner (slim, no pnpm, no tsx)
 │   │   ├── docker-entrypoint.sh   ← migrate deploy → prisma db seed → exec api. Forks delete the seed step before prod.
-│   │   ├── package.runtime.json   ← flat 7-dep manifest for the slim runner (no workspace, no symlinks; pinned exact)
+│   │   ├── package.runtime.json   ← flat manifest for the slim runner (no workspace, no symlinks; pinned exact). Includes both pg and neon adapters + @neondatabase/serverless for adapter auto-detect.
 │   │   ├── package.json
 │   │   ├── tsconfig.json          ← extends tsconfig.base.json
 │   │   ├── tsconfig.build.json    ← TS 6 needs explicit `"rootDir": "./src"` when outDir is set
@@ -116,7 +116,7 @@ web-project-template/
 │               └── utils.ts
 ├── packages/
 │   ├── db/
-│   │   ├── package.json           ← exports: import → dist/, dev → src/. dev: tsc watch. runtime: Prisma 7, @prisma/adapter-pg, pg.
+│   │   ├── package.json           ← exports: import → dist/, dev → src/. dev: tsc watch. runtime: Prisma 7, @prisma/adapter-pg (docker) or @prisma/adapter-neon (Neon, auto-detect), pg, @neondatabase/serverless.
 │   │   ├── tsconfig.json
 │   │   ├── tsconfig.build.json    ← tsc → dist/ (rootDir omitted, includes src/ + generated/)
 │   │   ├── prisma.config.js       ← Prisma 7: plain JS so slim runner can invoke via node (no tsx). seed: 'node apps/api/dist/seed.js'

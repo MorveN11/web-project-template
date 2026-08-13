@@ -112,7 +112,7 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 
 | Concern | Where it lives |
 | --- | --- |
-| Schema + generated types | `packages/db/prisma/schema.prisma` + `packages/db/prisma.config.js` (Prisma 7: URL lives in config, runtime uses `@prisma/adapter-pg`). Exposed via `@app/db`. |
+| Schema + generated types | `packages/db/prisma/schema.prisma` + `packages/db/prisma.config.js` (Prisma 7: URL lives in config, runtime uses `@prisma/adapter-pg` for docker or `@prisma/adapter-neon` for Neon — auto-detected by URL substring). Exposed via `@app/db`. |
 | Workspace packages (JS) | `@app/db` + `@app/shared-types` ship a `dist/` produced by `tsc -p tsconfig.build.json`. `exports` maps `import` → `dist/`, `dev` → `src/` so local `tsx --conditions=dev` keeps using source. |
 | Backend runtime | `apps/api` — Hono + Prisma + Clerk JWT. Built as an esbuild bundle (1.1MB), runs under plain `node` in production. |
 | Backend Repository layer | `apps/api/src/<feature>/repository.ts` — fluent Prisma facade |
@@ -130,7 +130,7 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 | Root env (compose reads from this) | `.env` (gitignored, `.env.example` is the template) |
 | Docker (dev) | `docker-compose.yml` — postgres + redis. api + web run on the host via `pnpm dev:*` (no bind-mount file-watcher issues). |
 | Docker (prod-like) | `docker-compose.prod.yml` — full stack via local Dockerfiles. api runner is `node:24-bookworm-slim` (no pnpm, no corepack, no tsx — the seed is bundled to JS in the build stage), web runner is `gcr.io/distroless/nodejs24-debian12:nonroot`. Redis runs on the prod bridge network as a sibling service. |
-| API runner prod manifest | `apps/api/package.runtime.json` — 6-dep flat manifest (prisma, pg, pino, redis, + 2 adapters) used by `npm install --omit=dev` in the slim runner (no workspace). Pinned exact versions, no carets. The seed runs as a bundled JS from `apps/api/dist/seed.js`, so workspace deps are not needed at runtime. |
+| API runner prod manifest | `apps/api/package.runtime.json` — flat manifest (prisma, pg, pino, redis, @prisma/adapter-pg, @prisma/adapter-neon, @neondatabase/serverless, dotenv) used by `npm install --omit=dev` in the slim runner (no workspace). Pinned exact versions, no carets. The seed runs as a bundled JS from `apps/api/dist/seed.js`, so workspace deps are not needed at runtime. |
 | Auth route groups | `apps/web/src/app/(public)/`, `(authenticated)/app/<feature>/` | `(public)/` for marketing + Clerk sign-in. `(authenticated)/app/` for everything behind Clerk auth (proxy.ts gates anything under `/app`). Admin role check lives in `(authenticated)/app/admin/layout.tsx` — a sub-layout that inherits the auth gate. |
 | Public web routes | `apps/web/src/app/(public)/` | Homepage (`/`), Clerk sign-in/up (`/auth/*`), and the `/health` liveness probe. |
 | Cache (api) | `apps/api/src/cache/{redis,clerk-user,user-session}.ts` | L1 in-process Map (clerk-user only) + L2 Redis. 30 s TTL. Cache wrapper degrades silently — Redis down → fall back to L1, never 5xx. Cache keys namespaced by `env.NODE_ENV` (`prod:` vs `dev:`) to avoid collisions across instances. |
