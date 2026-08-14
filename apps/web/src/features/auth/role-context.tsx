@@ -2,16 +2,15 @@
 
 // Client-side role context and hooks.
 //
-// The root layout reads the session server-side once and passes it
-// down through `<RoleProvider value={session}>`. Client components
-// then read it via `useRole()` (or the convenience hooks `useIsAdmin`
-// / `useIsClient`) without triggering another server round-trip —
-// useful for hiding nav items, action buttons, or whole panels based
-// on role.
+// The root layout ALWAYS mounts `<RoleProvider value={session}>` around
+// the tree — even when nobody is signed in. That way any client
+// component can call `useRole()` / `useIsAdmin()` / `useIsClient()`
+// without crashing on anonymous visitors: the hooks degrade to `null` /
+// `false` instead of throwing, so a public navbar can hide an admin
+// link without every call site wrapping itself in its own provider.
 //
-// `useRole()` throws if called outside a `<RoleProvider>`. That's
-// intentional: it surfaces the wiring mistake loudly instead of
-// silently rendering the wrong UI.
+// Server-side role checks still go through `getCurrentSession()` in
+// `actions.ts` — these hooks are a UI hint, not a security boundary.
 
 import { UserRole } from '@app/shared-types';
 import { createContext, type ReactNode, useContext } from 'react';
@@ -20,7 +19,7 @@ import type { UserSession } from '@/features/auth/types';
 const RoleContext = createContext<UserSession | null>(null);
 
 interface ProviderProps {
-  value: UserSession;
+  value: UserSession | null;
   children: ReactNode;
 }
 
@@ -31,23 +30,19 @@ export function RoleProvider({ value, children }: ProviderProps) {
 /**
  * Read the current session from React context.
  *
- * Throws when called outside a `<RoleProvider>` — that's a wiring
- * mistake (someone forgot to wrap the tree), not a runtime fallback.
+ * Returns `null` for anonymous visitors — callers that need a non-null
+ * session should branch on the result rather than assume.
  */
-export function useRole(): UserSession {
-  const ctx = useContext(RoleContext);
-  if (!ctx) {
-    throw new Error('useRole() called outside <RoleProvider>');
-  }
-  return ctx;
+export function useRole(): UserSession | null {
+  return useContext(RoleContext);
 }
 
-/** `true` when the current session is an admin. */
+/** `true` when the current session is an admin (anonymous → `false`). */
 export function useIsAdmin(): boolean {
-  return useRole().role === UserRole.ADMIN;
+  return useRole()?.role === UserRole.ADMIN;
 }
 
-/** `true` when the current session is a client. */
+/** `true` when the current session is a client (anonymous → `false`). */
 export function useIsClient(): boolean {
-  return useRole().role === UserRole.CLIENT;
+  return useRole()?.role === UserRole.CLIENT;
 }

@@ -1,5 +1,6 @@
 import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Button } from '@/components/ui/button';
 
 export async function Navbar() {
@@ -10,17 +11,18 @@ export async function Navbar() {
           Web Project Template
         </Link>
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Show when="signed-in">
             <UserButton />
           </Show>
           <Show when="signed-out">
             <SignInButton>
               <Button variant="outline" size="sm">
-                Sign in
+                Iniciar sesión
               </Button>
             </SignInButton>
             <SignUpButton>
-              <Button size="sm">Sign up</Button>
+              <Button size="sm">Registrarse</Button>
             </SignUpButton>
           </Show>
         </div>

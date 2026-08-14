@@ -31,6 +31,16 @@ export function requireRole(...allowed: UserRoleType[]): MiddlewareHandler {
   return async (c, next) => {
     const auth = getAuth(c);
     if (!auth.role || !allowed.includes(auth.role)) {
+      c.get('log')?.warn(
+        {
+          event: 'role.denied',
+          user_id: auth.clerkUserId,
+          user_role: auth.role,
+          required: allowed,
+          path: c.req.path,
+        },
+        'role.denied',
+      );
       throw new RoleForbiddenError();
     }
     await next();

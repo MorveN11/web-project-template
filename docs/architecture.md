@@ -154,37 +154,63 @@ Browser
 
 ### Prisma 7 adapter pattern
 
-Prisma 7 removed `datasource.url` from `schema.prisma`. Connection URL lives in `packages/db/prisma.config.ts`:
+Prisma 7 removed `datasource.url` from `schema.prisma`. Connection URL lives in `packages/db/prisma.config.js` — plain JS, not TS, so the slim api image can invoke the prisma CLI with bare `node` (no tsx/ts-node at runtime):
 
-```ts
-// prisma.config.ts
+```js
+// prisma.config.js
 import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is required (set it in .env or the shell)');
-}
+// `process.env` directly instead of prisma's `env()` helper: the helper THROWS
+// on a missing var, and `prisma generate` runs in the Docker build stage where
+// DATABASE_URL isn't in scope yet. Migrate/studio still error on their own.
+// Migrations prefer DIRECT_URL when set (Neon requires a direct endpoint for
+// DDL transactions); docker dev leaves it unset → falls back to DATABASE_URL.
+const database_url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
 export default defineConfig({
   schema: './prisma/schema.prisma',
   migrations: {
-    seed: 'tsx prisma/seed.ts',
+    // esbuild bundles packages/db/prisma/seed.ts into apps/api/dist/seed.js at
+    // build time, so the runtime image needs neither tsx nor the workspace deps.
+    seed: 'node apps/api/dist/seed.js',
   },
-  datasource: {
-    url: process.env.DATABASE_URL,
-  },
+  ...(database_url ? { datasource: { url: database_url } } : {}),
 });
 ```
 
-The runtime `PrismaClient` is built with the driver adapter in `packages/db/src/client.ts`:
+The runtime `PrismaClient` is built with a driver adapter chosen by URL shape in `packages/db/src/client.ts`:
 
 ```ts
+import { PrismaNeon } from '@prisma/adapter-neon';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const url = process.env.DATABASE_URL!;
+const isNeon = url.includes('.neon.tech') || url.includes('-pooler.');
+const adapter = isNeon
+  ? new PrismaNeon({ connectionString: url })
+  : new PrismaPg({ connectionString: url });
 export const database = new PrismaClient({ adapter, log: ['warn', 'error'] });
 ```
+
+`@prisma/adapter-neon` (HTTP via `@neondatabase/serverless`) only speaks to
+Neon's pooler endpoint; everything else uses `@prisma/adapter-pg` as before.
+Detection is by URL substring so docker dev and Neon prod share the same
+`PrismaClient` construction — no `DATABASE_PROVIDER` flag.
+
+### Dual-URL pattern (Neon)
+
+Neon mandates two connection strings:
+
+| Variable | Used by | Endpoint |
+| --- | --- | --- |
+| `DATABASE_URL` | Runtime `PrismaClient` (driver adapter) | `-pooler` (e.g. `ep-xxx-pooler.eu-central-1.aws.neon.tech`) |
+| `DIRECT_URL` | `prisma migrate` (`docker-entrypoint.sh`) | Direct (e.g. `ep-xxx.eu-central-1.aws.neon.tech`) |
+
+Set both in the api container's runtime env (compose `environment:` for
+Dokploy). `apps/api/src/env.ts` validates `DIRECT_URL` as optional — empty
+falls through to `DATABASE_URL` for docker dev, where one URL is enough.
 
 ### Public surface (`@app/db`)
 

@@ -6,6 +6,7 @@
  * Branches: `main` → stable release, `test` → prerelease.
  * @type {import('semantic-release').Options}
  */
+/** biome-ignore-all lint/suspicious/noTemplateCurlyInString: 'Release config file' */
 export default {
   branches: [
     { name: 'main', channel: 'latest' },

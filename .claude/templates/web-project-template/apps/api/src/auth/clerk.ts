@@ -2,7 +2,8 @@
 //
 // Flow:
 //   1. Verify the bearer token (signature, exp, iss) via `@clerk/backend`.
-//   2. Resolve the Clerk user with `clerkClient.users.getUser(sub)`.
+//   2. Resolve the Clerk user via `getClerkUserCached(sub)` from
+//      `cache/clerk-user.ts` — L1 in-process Map + L2 Redis, 30s TTL.
 //   3. Source profile fields + `privateMetadata.role` from the user
 //      object — never from JWT claims.
 //
@@ -18,13 +19,16 @@
 //     claims soup, and `service.syncSelf` reuses it without a second
 //     BAPI round-trip.
 //
-// Trade-off: +1 Clerk BAPI read per authenticated request. Acceptable
-// at current scale; if BAPI quota becomes a concern, cache the user
-// object briefly (e.g. 30s in-memory keyed on `sub`).
+// Trade-off: +1 Clerk BAPI read per authenticated request, mitigated
+// by the L1+L2 memo in `cache/clerk-user.ts` (30s TTL). Role flips
+// in Clerk propagate within the TTL window — call
+// `invalidateClerkUserCached(sub)` after mutating role to skip the
+// wait.
 
 import { UserRole, type UserRole as UserRoleType } from '@app/shared-types';
-import { createClerkClient, type User, verifyToken } from '@clerk/backend';
+import { type User, verifyToken } from '@clerk/backend';
 import type { Context, MiddlewareHandler } from 'hono';
+import { getClerkUserCached } from '../cache/clerk-user';
 import { env } from '../env';
 import { logger, withRequest } from '../logger';
 
@@ -52,7 +56,6 @@ export class HttpError extends Error {
 }
 
 const AUTHORIZED_PARTIES = env.CLERK_AUTHORIZED_PARTIES;
-const clerkClient = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
 
 export async function verifyClerkToken(token: string): Promise<ClerkAuthContext> {
   // `authorizedParties` only applies to JWTs minted by the Clerk
@@ -78,7 +81,7 @@ export async function verifyClerkToken(token: string): Promise<ClerkAuthContext>
 
   let clerkUser: User;
   try {
-    clerkUser = await clerkClient.users.getUser(sub);
+    clerkUser = await getClerkUserCached(sub);
   } catch (cause) {
     logger.debug({ cause, sub }, 'clerk user fetch failed');
     throw new HttpError(401, 'unauthorized', 'invalid or expired token');
@@ -131,11 +134,22 @@ function hasAzp(token: string): boolean {
 export const requireAuth: MiddlewareHandler = async (c, next) => {
   const header = c.req.header('authorization');
   if (!header?.startsWith('Bearer ')) {
+    c.get('log')?.warn({ event: 'auth.failed', reason: 'missing_bearer' }, 'auth.failed: missing bearer token');
     throw new HttpError(401, 'unauthorized', 'missing bearer token');
   }
   const token = header.slice('Bearer '.length).trim();
-  const ctx = await verifyClerkToken(token);
+  let ctx: ClerkAuthContext;
+  try {
+    ctx = await verifyClerkToken(token);
+  } catch (cause) {
+    // verifyClerkToken only throws 401s; treat them all as failed
+    // auth attempts for the audit log. The onError handler turns
+    // the throw into the 401 response.
+    c.get('log')?.warn({ event: 'auth.failed', reason: 'invalid_token', cause }, 'auth.failed: invalid token');
+    throw cause;
+  }
   c.set('auth', ctx);
+  c.get('log')?.info({ event: 'auth.ok', user_id: ctx.clerkUserId }, 'auth.ok');
   await next();
 };
 

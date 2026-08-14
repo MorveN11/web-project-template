@@ -8,18 +8,16 @@
 //   <IfRole     role={…}>                      → same, sugar at call sites
 //
 // Client-side (read session in components):
-//   <RoleProvider value={session}>…</RoleProvider>
-//   useRole()           → UserSession (throws outside the provider)
-//   useIsAdmin()        → boolean
-//   useIsClient()       → boolean
-//   <AuthStateSync />   → refreshes RSC on sign-in/out (mount once)
+//   <RoleProvider value={session | null}>…</RoleProvider>  // always mounted in the root layout
+//   useRole()           → UserSession | null (null when anonymous)
+//   useIsAdmin()        → boolean (false when anonymous)
+//   useIsClient()       → boolean (false when anonymous)
 //
 // File layout:
 //   actions.ts              — Clerk session entry points, server-action boundary
 //   services/auth.service.ts — api calls (HTTP) for the user-session endpoints
 //   guards.tsx              — server-side role render guards
 //   role-context.tsx        — client-side role context + hooks
-//   auth-state-sync.tsx     — client cache-buster on auth-state changes
 //   types.ts                — UserSession, UserRole (re-exported from shared-types)
 //   constants.ts            — REDIRECT_URL, FALLBACK_REDIRECT_URL
 
