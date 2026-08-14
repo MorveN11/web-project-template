@@ -3,6 +3,7 @@ import { Fira_Code, Inter, Merriweather } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Navbar } from '@/components/layout/navbar';
 import { ThemeProvider } from '@/components/theme-provider';
+import { UmamiScript } from '@/components/umami-script';
 import { RoleProvider } from '@/features/auth';
 import { getCurrentSession } from '@/features/auth/actions';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,10 @@ export default async function RootLayout({ children }: Props) {
       className={cn('font-sans', inter.variable, merriweather.variable, firacode.variable)}
     >
       <body className="flex min-h-screen flex-col bg-background text-foreground">
+        {/* Umami analytics — single self-hosted `<script>` tag.
+            Dev never tracks (NODE_ENV gate inside the component).
+            See `apps/web/src/components/umami-script.tsx`. */}
+        <UmamiScript />
         <a
           href="#contenido"
           className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"

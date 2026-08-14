@@ -20,11 +20,13 @@ import { handleClerkWebhook } from './features/webhooks';
 import { logger, withRequest } from './logger';
 import { bearerSecurity } from './openapi/security';
 import { webhookAndDevRateLimiter } from './rate-limit';
+import { initSentry, isSentryEnabled, Sentry } from './sentry';
 // Side-effect import: registers Hono context-variable augmentation
 // (`log`, `request_id`). Required for typed `c.set` / `c.get` calls below.
 import './types/hono-context';
 
 attachPrismaLogging();
+initSentry();
 
 const app = new OpenAPIHono();
 
@@ -197,6 +199,20 @@ app.onError((err, c) => {
     return c.json({ error: { code: e.code, message: e.message } }, e.status as 400);
   }
   log?.error({ err }, 'unhandled error');
+  // Mirror to Sentry so the aggregator sees unhandled 5xx. Skipped
+  // when Sentry is not configured (DSN empty / init no-op). 4xx
+  // (typed HttpError) intentionally does NOT reach here — that's
+  // client noise, not a server bug.
+  if (isSentryEnabled()) {
+    Sentry.captureException(err, {
+      extra: {
+        request_id: c.get('request_id'),
+        method: c.req.method,
+        path: c.req.path,
+        status: c.res.status,
+      },
+    });
+  }
   return c.json({ error: { code: 'internal_error', message: 'something exploded' } }, 500);
 });
 

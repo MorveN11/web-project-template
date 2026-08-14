@@ -407,7 +407,7 @@ fix/<name>     ─┤  ← your work, branches off dev
 chore/<name>   ─┤
                │
                ▼ PR (review)
-              test   ← features accumulate here, validates in staging
+              test   ← features accumulate here, validates in testing
                │
                ▼ periodic release PR (test → main)
               main   ← every push triggers a stable release
@@ -419,14 +419,14 @@ chore/<name>   ─┤
 | Branch | Role | Push trigger |
 | --- | --- | --- |
 | `dev` | Day-to-day integration. Features fork from here. | — |
-| `test` | Staging. Features PR in here. Validates in the staging environment. | every push → `release-test.yml` (test-channel prerelease) |
+| `test` | Testing. Features PR in here. Validates in the testing environment. | every push → `release-test.yml` (test-channel prerelease) |
 | `main` | Production. Stable-channel releases. | every push → `release-prod.yml` (stable release) |
 
 #### The cycle in steps
 
 1. **Branch from `dev`.** `git checkout -b feature/my-change dev`.
 2. **PR into `test`.** Open the PR against `test`. Reviewers approve. CI must pass.
-3. **Merge → `test`.** Squash + delete branch. The change is now in the staging environment.
+3. **Merge → `test`.** Squash + delete branch. The change is now in the testing environment.
 4. **Periodic release to `main`.** When `test` is ready to ship, open a PR `test → main`. CI runs again. On merge, `release-prod.yml` publishes `:latest` + `:<semver>` images and curls the prod Dokploy webhook.
 5. **Sync `main` back to `dev`.** After step 4, open (or auto-create) a PR `main → dev` to keep the working branch current. This catches the release commits, hotfixes that landed directly on `main`, and any merge commits.
 

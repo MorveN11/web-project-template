@@ -13,7 +13,7 @@
 //
 // Key namespacing: every fork MUST set `keyPrefix: '<app-name>-<env>-'`
 // so Redis keys can't collide when (a) multiple forks share a cluster
-// OR (b) multiple environments (dev/staging/prod) of one fork point at
+// OR (b) multiple environments (dev/testing/prod) of one fork point at
 // the same Redis. The prefix is computed at client-construct time
 // as `${REDIS_KEY_PREFIX}${env.NODE_ENV}-`:
 //   - REDIS_KEY_PREFIX defaults to the app name (`web-project-template-`).
@@ -52,7 +52,7 @@ export async function getRedis(): Promise<Redis | null> {
       maxRetriesPerRequest: 2,
       // Per-app + per-env namespace. See file header — required
       // convention for every fork. Joins REDIS_KEY_PREFIX +
-      // NODE_ENV so dev/staging/prod never share keys even when
+      // NODE_ENV so dev/testing/prod never share keys even when
       // they point at the same Redis cluster.
       keyPrefix: `${env.REDIS_KEY_PREFIX}${env.NODE_ENV}-`,
     });

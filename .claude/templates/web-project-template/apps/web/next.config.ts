@@ -1,3 +1,4 @@
+import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
 // Security headers applied to every response. Layered with the api's
@@ -29,13 +30,16 @@ const config: NextConfig = {
     // Clerk-hosted Account Portal can tighten frame-src to 'self'.
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://clerk.web-project-template.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://clerk.web-project-template.com https://your-umami.example.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://img.clerk.com https://*.clerk.com",
       "font-src 'self' data:",
       // Clerk's Account Portal + WebAuthn flows live in iframes.
       "frame-src 'self' https://*.clerk.accounts.dev https://clerk.web-project-template.com https://challenges.cloudflare.com",
-      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://api.clerk.com https://clerk.web-project-template.com",
+      // Umami self-hosted analytics sends `POST /api/send` to its
+      // own host on page events; both the script load and the event
+      // pings need to be on the connect-src allowlist.
+      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://api.clerk.com https://clerk.web-project-template.com https://your-umami.example.com",
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "form-action 'self' https://*.clerk.accounts.dev",
@@ -89,4 +93,21 @@ const config: NextConfig = {
   },
 };
 
-export default config;
+// GlitchTip / Sentry wrapper. Uploads source maps at build time when
+// SENTRY_AUTH_TOKEN is present (build-time only — never runtime env).
+// The browser tunnel is wired to /api/glitchtip-tunnel (App Router).
+//
+// `silent: !isDev` suppresses build-time source-map warnings in dev
+// where there's no token to upload with.
+export default withSentryConfig(config, {
+  org: 'your-org',
+  project: 'web',
+  silent: process.env.NODE_ENV !== 'production',
+  // Don't ship source maps to the standalone bundle — they're uploaded
+  // to GlitchTip at build time and resolved server-side there.
+  // `@sentry/nextjs` v10 renamed `hideSourceMaps` → `sourcemaps`.
+  sourcemaps: { disable: true },
+  // Browser SDK POSTs to this path; our route handler forwards to GlitchTip.
+  tunnelRoute: '/api/glitchtip-tunnel',
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+});

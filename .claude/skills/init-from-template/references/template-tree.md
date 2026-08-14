@@ -58,16 +58,21 @@ web-project-template/
 │   │       │   └── webhooks/      ← Clerk webhook receiver. Handles user.updated, user.deleted, session.revoked — each invalidates BOTH caches.
 │   │       ├── logger.ts          ← pino single source (uses pino-pretty only when NOT production)
 │   │       ├── openapi/           ← shared security + responses constants
+│   │       ├── sentry.ts          ← @sentry/node init (no-op when SENTRY_DSN empty); loaded by index.ts before any other middleware
 │   │       ├── types/             ← Hono ContextVariableMap augmentation
 │   │       └── index.ts           ← boot: env → request-id → user-logger → access-log → cors → public → business → error handler → serve
 │   └── web/
 │       ├── .env                   ← gitignored
 │       ├── .env.example
 │       ├── Dockerfile             ← Next.js standalone, distroless/nodejs24-debian12:nonroot runner
-│       ├── next.config.ts
+│       ├── .dockerignore         ← excludes .env, sentry sourcemaps, etc. from web build context
+│       ├── next.config.ts        ← wraps config with withSentryConfig (source-map upload wired at build time)
 │       ├── package.json
 │       ├── postcss.config.mjs
 │       ├── proxy.ts               ← clerkMiddleware: PRIVATE_PREFIX='/app' gates auth. Everything else public (incl. /health, /auth/*, /, /api/webhooks).
+│       ├── sentry.client.config.ts  ← @sentry/nextjs browser init (no-op when NEXT_PUBLIC_SENTRY_DSN empty)
+│       ├── sentry.edge.config.ts    ← @sentry/nextjs edge-runtime init (middleware, RSC streaming)
+│       ├── sentry.server.config.ts  ← @sentry/nextjs server-runtime init (route handlers, server actions)
 │       ├── tsconfig.json
 │       ├── vitest.config.ts
 │       └── src/
@@ -81,6 +86,7 @@ web-project-template/
 │           │   ├── (authenticated)/               ← Clerk-protected. All private routes live under this /app prefix.
 │           │   │   ├── layout.tsx                ← auth gate (getCurrentSession + redirect)
 │           │   │   └── app/
+│           │   │       └── api/glitchtip-tunnel/route.ts  ← server-side proxy to GlitchTip ingest endpoint (bypass ad-blockers / CSP)
 │           │   │       ├── layout.tsx            ← (shared sub-layout if needed)
 │           │   │       ├── dashboard/page.tsx    → /app/dashboard
 │           │   │       └── admin/                ← admin role gate
@@ -96,7 +102,9 @@ web-project-template/
 │           ├── components/
 │           │   ├── layout/{navbar.tsx, theme-toggle.tsx}
 │           │   ├── theme-provider.tsx ← next-themes wrapper (class-based dark mode)
-│           │   └── ui/             ← shadcn components (excluded from biome formatting)
+│           │   ├── ui/             ← shadcn components (excluded from biome formatting)
+│           │   └── umami-script.tsx ← <Script src={NEXT_PUBLIC_UMAMI_SCRIPT_URL} data-website-id={…} />, rendered in root layout only when NODE_ENV === 'production'
+│           ├── instrumentation.ts  ← Next.js 15 hook that initialises Sentry server/edge SDKs on boot
 │           ├── features/
 │           │   └── auth/
 │           │       ├── actions.ts          ← getCurrentSession (zero-arg readSession memo + thin dispatch) + getCurrentToken. Rung-1 cache fix: cache() keys on arg identity, so the memo MUST be zero-arg.

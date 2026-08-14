@@ -24,7 +24,7 @@ git checkout -b feature/my-change dev
 # sync main → dev
 # ...edit, commit with conventional commits, push
 gh pr create --base test
-# review + merge → test branch deploys to staging via Dokploy
+# review + merge → test branch deploys to testing via Dokploy
 # promote test → main → prod deploy
 ```
 
@@ -133,7 +133,7 @@ chore/<name>    ─┤
 | Branch | Role | Push trigger | Locked? |
 | --- | --- | --- | --- |
 | `main` | Production. Stable-channel releases. | `release-prod.yml` | yes — merge only via PR from `test` |
-| `test` | Staging. Prerelease-channel releases. | `release-test.yml` | yes — merge only via PR from feature branches or from `main` (sync) |
+| `test` | Testing. Prerelease-channel releases. | `release-test.yml` | yes — merge only via PR from feature branches or from `main` (sync) |
 | `dev` | Day-to-day integration. Features fork from here. | — | no — direct push allowed for trivial sync merges |
 | `feature/*`, `fix/*`, `chore/*`, etc. | Per-change work. | — | no — short-lived |
 
@@ -175,7 +175,7 @@ The cycle, in order:
 2. **Open the PR against `test`.** Fill the PR template (Type of change, breaking changes if any, testing notes).
 3. **CI runs.** `check-branch`, `check-pull-request`, `ci` must all pass. CODEOWNERS auto-requests review from the appropriate team (`.github/CODEOWNERS`).
 4. **Review.** Maintainers / team-reviewers approve.
-5. **Merge into `test`.** Squash + delete branch. `release-test.yml` runs on the push to `test` and deploys to staging via Dokploy.
+5. **Merge into `test`.** Squash + delete branch. `release-test.yml` runs on the push to `test` and deploys to testing via Dokploy.
 6. **Periodic release: `test` → `main`.** When `test` is ready to ship, open a PR `test → main`. CI runs again. Merge to trigger `release-prod.yml` (publishes `:latest` + `:<semver>` images + curls the prod Dokploy webhook).
 7. **Sync `main` → `dev`.** After step 6, open (or auto-create) a PR `main → dev`. This catches release commits, hotfixes that landed directly on `main`, and any merge commits.
 

@@ -107,6 +107,13 @@ services:
       # creates admin@template.test on an empty DB. Flip to "false"
       # in environments that don't want the seed.
       SEED_ENABLED: "true"
+      # ---------- GlitchTip / Sentry (api runtime) ----------
+      # Same hard-pin as DATABASE_URL: empty default = Sentry disabled.
+      # SENTRY_ENVIRONMENT tracks whether this compose file is being
+      # used for testing (`testing`) or prod (`production`).
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.01}
     ports:
       - "${API_HOST_PORT:-4000}:8080"
     # Hit the in-container /health endpoint so the web service can wait
@@ -130,6 +137,23 @@ services:
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
         NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/iniciar-sesion}
         NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/auth/registro}
+        # GlitchTip / Sentry build-time only. `withSentryConfig` reads
+        # this to upload source maps. NEVER set in the container's
+        # runtime env (image-history leak). Empty = no source maps.
+        SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
+        # Umami analytics — inlined into the JS bundle at build time.
+        # Empty default = dev (NODE_ENV gate inside <UmamiScript />
+        # skips render even if a stray URL is set). PRODUCTION ONLY —
+        # see release.prod.yml / release.test.yml for the env split.
+        NEXT_PUBLIC_UMAMI_SCRIPT_URL: ${NEXT_PUBLIC_UMAMI_SCRIPT_URL:-}
+        NEXT_PUBLIC_UMAMI_WEBSITE_ID: ${NEXT_PUBLIC_UMAMI_WEBSITE_ID:-}
+        # GlitchTip / Sentry (web runtime) — inlined into the JS bundle.
+        # The API-side `SENTRY_DSN` is runtime-only (server reads from
+        # process.env at boot). The browser-side DSN must be inlined at
+        # build time because `next/script` evaluates it on the client.
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
+        NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: ${NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:-0.01}
         # No CLERK_SECRET_KEY here: build args land in the image history.
         # It's a runtime-only secret — see the `environment:` block below.
     image: ${WEB_IMAGE:-web-project-template-web:local}

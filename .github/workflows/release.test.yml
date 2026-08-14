@@ -135,6 +135,20 @@ jobs:
             NEXT_PUBLIC_CLERK_SIGN_IN_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
             NEXT_PUBLIC_CLERK_SIGN_UP_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_TEST_API_URL }}
+            # Build-time only (source map upload). Empty = no source maps.
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN_TEST }}
+            # GlitchTip / Sentry — inlined into the JS bundle at build time.
+            # Test deploys track errors + metrics just like prod, so
+            # testing-env bugs surface in GlitchTip before they ship.
+            # The environment tag (`testing`) keeps them separable
+            # from prod events in the GlitchTip UI.
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN_TEST }}
+            NEXT_PUBLIC_SENTRY_ENVIRONMENT=testing
+            NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0.01
+            # NO Umami build args here — Umami tracks REAL traffic data
+            # (page views, sessions, conversions). Test deploys deliberately
+            # omit it; the <UmamiScript /> NODE_ENV gate + empty-value
+            # guard ensures no script renders on test.
           tags: |
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:test
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:${{ needs.release.outputs.new_tag }}-build

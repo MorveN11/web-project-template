@@ -13,8 +13,8 @@ feature/* (or fix/*, chore/*) ──► test ──► main
 
 1. **Branch from `test`.** Use a conventional prefix: `feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, `test/`.
 2. **Open a PR into `test`.** CI runs `lint + typecheck + build`. Fix anything that breaks — the PR blocks until green.
-3. **After merge into `test`** — `release.test.yml` builds a `:test` image, pushes it, and curls the test Dokploy webhook. Smoke-test the staging env.
-4. **Promote `test` → `main`** — usually a separate PR or direct push once staging is verified. `release.prod.yml` builds `:stable`, deploys to prod.
+3. **After merge into `test`** — `release.test.yml` builds a `:test` image, pushes it, and curls the test Dokploy webhook. Smoke-test the testing env.
+4. **Promote `test` → `main`** — usually a separate PR or direct push once testing is verified. `release.prod.yml` builds `:stable`, deploys to prod.
 
 ## Branch naming
 

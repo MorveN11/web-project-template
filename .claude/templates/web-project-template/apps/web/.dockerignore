@@ -1,0 +1,19 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+*.log
+coverage
+
+# Claude + agents tooling (1.6MB+ of noise)
+.claude
+.agents
+
+# Tooling configs — never used at build or runtime
+biome.json
+.editorconfig
+release.config.mjs
+skills-lock.json
+.husky

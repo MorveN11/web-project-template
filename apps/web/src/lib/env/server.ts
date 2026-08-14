@@ -10,12 +10,16 @@ import { z } from 'zod';
 
 export const env = createEnv({
   server: {
+    NODE_ENV: z.enum(['development', 'testing', 'production']).default('development'),
     CLERK_SECRET_KEY: z.string().min(1, 'CLERK_SECRET_KEY is required').default('sk_test_123'),
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    // Build-time only — used by `withSentryConfig` to upload source
+    // maps to GlitchTip. Never runtime; would leak via image history.
+    SENTRY_AUTH_TOKEN: z.string().optional(),
   },
   runtimeEnv: {
-    CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     NODE_ENV: process.env.NODE_ENV,
+    CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+    SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
   },
   emptyStringAsUndefined: true,
 });

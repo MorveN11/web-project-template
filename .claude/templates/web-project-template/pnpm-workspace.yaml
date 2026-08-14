@@ -5,6 +5,7 @@ packages:
 allowBuilds:
   '@clerk/shared': true
   '@prisma/engines': true
+  '@sentry/cli': set this to true or false
   bufferutil: true
   core-js: true
   esbuild: true
@@ -21,9 +22,10 @@ minimumReleaseAgeExclude:
 # Native build allowlist. Add any package whose postinstall compiles native code.
 onlyBuiltDependencies:
   - "@clerk/shared"
-  - "@tailwindcss/oxide"
   - "@prisma/client"
   - "@prisma/engines"
+  - "@sentry/cli"
+  - "@tailwindcss/oxide"
   - "core-js"
   - "esbuild"
   - "prisma"

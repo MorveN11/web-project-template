@@ -133,6 +133,21 @@ jobs:
             NEXT_PUBLIC_CLERK_SIGN_IN_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
             NEXT_PUBLIC_CLERK_SIGN_UP_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+            # Build-time only (source map upload). Empty = no source maps.
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN_PROD }}
+            # GlitchTip / Sentry — inlined into the JS bundle at build time.
+            # Both prod + test envs wire to GlitchTip (errors + metrics
+            # in both). Environment hardcoded per workflow (not a secret)
+            # so GlitchTip UI filters by `production` vs `testing`.
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN_PROD }}
+            NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+            NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0.01
+            # Umami analytics — PRODUCTION ONLY. Test deploys deliberately
+            # omit these (release.test.yml has no Umami args); the
+            # <UmamiScript /> gate still triggers for non-dev builds
+            # when the values are empty, so test deploys don't track.
+            NEXT_PUBLIC_UMAMI_SCRIPT_URL=${{ secrets.NEXT_PUBLIC_UMAMI_SCRIPT_URL }}
+            NEXT_PUBLIC_UMAMI_WEBSITE_ID=${{ secrets.NEXT_PUBLIC_UMAMI_WEBSITE_ID }}
           tags: |
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:stable
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:${{ needs.release.outputs.new_tag }}
