@@ -36,6 +36,10 @@ ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_CLERK_SIGN_IN_URL
 ARG NEXT_PUBLIC_CLERK_SIGN_UP_URL
 ARG NEXT_PUBLIC_LOG_LEVEL
+# Public hostname baked into the bundle. Drives metadataBase, OG url,
+# canonical, sitemap URLs, PWA manifest id. Required for Google OAuth
+# domain matching — empty = bundle uses the zod default in env/client.ts.
+ARG NEXT_PUBLIC_SITE_URL
 # GlitchTip / Sentry build-time only — used by `withSentryConfig` to
 # upload source maps. Empty in dev builds without a token.
 ARG SENTRY_AUTH_TOKEN
@@ -55,6 +59,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
     NEXT_PUBLIC_CLERK_SIGN_IN_URL=$NEXT_PUBLIC_CLERK_SIGN_IN_URL \
     NEXT_PUBLIC_CLERK_SIGN_UP_URL=$NEXT_PUBLIC_CLERK_SIGN_UP_URL \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_LOG_LEVEL=$NEXT_PUBLIC_LOG_LEVEL \
     SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN \
     NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN \

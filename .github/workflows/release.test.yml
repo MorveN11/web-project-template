@@ -135,6 +135,10 @@ jobs:
             NEXT_PUBLIC_CLERK_SIGN_IN_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
             NEXT_PUBLIC_CLERK_SIGN_UP_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_TEST_API_URL }}
+            # Public site URL — baked into metadataBase, OG url, sitemap,
+            # canonical. MUST be the test/staging hostname here, otherwise
+            # the test bundle points at prod (default fallback).
+            NEXT_PUBLIC_SITE_URL=${{ secrets.NEXT_PUBLIC_SITE_URL_TEST }}
             # Build-time only (source map upload). Empty = no source maps.
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN_TEST }}
             # GlitchTip / Sentry — inlined into the JS bundle at build time.

@@ -10,6 +10,10 @@ export const env = createEnv({
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1, 'CLERK publishable key is required').default('pk_test_123'),
     NEXT_PUBLIC_CLERK_SIGN_IN_URL: z.string().default('/auth/iniciar-sesion'),
     NEXT_PUBLIC_CLERK_SIGN_UP_URL: z.string().default('/auth/registro'),
+    // Public hostname of the deployed site. Used for metadataBase, OG url,
+    // canonical, sitemap, manifest id, and any absolute URL the client
+    // emits. Must include scheme; no trailing slash.
+    NEXT_PUBLIC_SITE_URL: z.url().default('https://example.com'),
     // Client-side log level. `debug` in dev, `warn` in prod by default —
     // debug/info logs ship input shapes that don't belong in prod
     // bundles. Override per-env via the build-time NEXT_PUBLIC_LOG_LEVEL
@@ -40,6 +44,7 @@ export const env = createEnv({
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
     NEXT_PUBLIC_CLERK_SIGN_UP_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_LOG_LEVEL: process.env.NEXT_PUBLIC_LOG_LEVEL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,

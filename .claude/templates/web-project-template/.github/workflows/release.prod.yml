@@ -133,6 +133,9 @@ jobs:
             NEXT_PUBLIC_CLERK_SIGN_IN_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
             NEXT_PUBLIC_CLERK_SIGN_UP_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+            # Public site URL — baked into metadataBase, OG url, sitemap,
+            # canonical. Required for Google OAuth domain matching.
+            NEXT_PUBLIC_SITE_URL=${{ secrets.NEXT_PUBLIC_SITE_URL_PROD }}
             # Build-time only (source map upload). Empty = no source maps.
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN_PROD }}
             # GlitchTip / Sentry — inlined into the JS bundle at build time.

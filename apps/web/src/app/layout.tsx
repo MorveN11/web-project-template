@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { UmamiScript } from '@/components/umami-script';
 import { RoleProvider } from '@/features/auth';
 import { getCurrentSession } from '@/features/auth/actions';
+import { env } from '@/lib/env/client';
 import { cn } from '@/lib/utils';
 import { Providers } from './providers';
 import './globals.css';
@@ -15,8 +16,40 @@ const merriweather = Merriweather({ subsets: ['latin'], variable: '--font-serif'
 const firacode = Fira_Code({ subsets: ['latin'], variable: '--font-mono' });
 
 export const metadata: Metadata = {
-  title: 'Web Project Template',
+  // Anchors every relative OG / canonical URL to the deployed hostname.
+  metadataBase: new URL(env.NEXT_PUBLIC_SITE_URL),
+  // App name shown by Google OAuth consent screen and PWA install prompts.
+  // Match the value entered in Google Cloud Console → OAuth consent screen.
+  applicationName: 'Web Project Template',
+  title: {
+    default: 'Web Project Template',
+    template: '%s · Web Project Template',
+  },
   description: 'Plantilla de tienda.',
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    type: 'website',
+    url: env.NEXT_PUBLIC_SITE_URL,
+    siteName: 'Web Project Template',
+    title: 'Web Project Template',
+    description: 'Plantilla de tienda.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Web Project Template',
+    description: 'Plantilla de tienda.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+    },
+  },
 };
 
 export const viewport: Viewport = {

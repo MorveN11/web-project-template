@@ -23,6 +23,23 @@ The `NEXT_PUBLIC_*` prefix inlines the value into the JS bundle at build time. S
 
 `CLERK_SECRET_KEY` is **not** in the CI secrets list. The api (`apps/api/src/auth/clerk.ts`) uses it for JWT verification — that runs at runtime inside the Docker container, where the value is set via compose `environment:` from the host `.env` (or the deployment platform's secret manager). CI never sees the secret key.
 
+## Build-time identity vars (added for Google OAuth / Search Console verification)
+
+The Google Search Console domain property is verified via **DNS TXT** at Cloudflare (not via HTML tag), so no app env var is needed for Search Console. The `NEXT_PUBLIC_SITE_URL_*` vars below drive the rest of the identity surface.
+
+| Secret | Used in | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL_PROD` | `release.prod.yml` | Public hostname baked into the prod web bundle. Drives `metadataBase`, OG `url`, `alternates.canonical`, sitemap URLs, PWA manifest `id`. Default in `apps/web/src/lib/env/client.ts` is `https://example.com` — set explicitly to your real prod hostname. |
+| `NEXT_PUBLIC_SITE_URL_TEST` | `release.test.yml` | Same, for the test/staging env. Set to the test hostname. Without this, the test bundle defaults to the prod URL → sitemap/OG point at prod instead of test, breaking Google OAuth domain matching. |
+
+**Criticality:**
+
+- `NEXT_PUBLIC_SITE_URL_*` — **HIGH**. The schema default (`https://example.com`) is a placeholder; prod must override it. Test env will silently point at prod unless you set `_TEST`. No build failure — bad data ships.
+
+These follow the per-env split precedent set by `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY_{DEV,TEST,PROD}` because each env deploys at a different hostname.
+
+**Google Search Console verification:** register your domain as a **Domain property** (not URL prefix) in [Search Console](https://search.google.com/search-console) → Settings → Ownership verification → DNS TXT. Your DNS provider hosts the TXT record — one record covers the apex + every subdomain. The verification lives in DNS, so it survives hosting changes, redeploys, and image rebuilds.
+
 ## Required for `release.prod.yml` and `release.test.yml`
 
 Every row below is referenced as `${{ secrets.<NAME> }}` in the workflow. Adding a row here without a matching GitHub Secret breaks the build.
@@ -42,6 +59,8 @@ Every row below is referenced as `${{ secrets.<NAME> }}` in the workflow. Adding
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY_TEST` | `release.test.yml` | Clerk publishable key for test (see table above). |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | both | Sign-in entry route. Same in every env. |
 | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | both | Sign-up entry route. Same in every env. |
+| `NEXT_PUBLIC_SITE_URL_PROD` | `release.prod.yml` | Prod hostname baked into the web bundle (metadataBase, OG, sitemap). See "Build-time identity vars" above. |
+| `NEXT_PUBLIC_SITE_URL_TEST` | `release.test.yml` | Test/staging hostname baked into the test web bundle. |
 | `SENTRY_AUTH_TOKEN_PROD` | `release.prod.yml` | GlitchTip auth token for source-map upload on the prod web build. Build-time only — never runtime (image-history leak). |
 | `SENTRY_AUTH_TOKEN_TEST` | `release.test.yml` | Same, for the test web build. |
 | `NEXT_PUBLIC_SENTRY_DSN_PROD` | `release.prod.yml` | GlitchTip web DSN for the prod web build (inlined at build time). |
@@ -89,13 +108,13 @@ These are set in `docker-compose.prod.yml` `environment:` blocks (or your deploy
 | --- | --- | --- |
 | `CLERK_SECRET_KEY` | Required by the api at runtime to verify Clerk JWTs. | none (fail-fast) |
 | `CLERK_PUBLISHABLE_KEY` | Clerk publishable key (api-side runtime, used by Clerk SDK BAPI calls). | `''` |
-| `CLERK_AUTHORIZED_PARTIES` | CSV of origins allowed to mint JWTs (`http://localhost:3000,http://localhost:4000` for dev). | `http://localhost:3000` |
+| `CLERK_AUTHORIZED_PARTIES` | CSV of origins allowed to mint JWTs (`http://localhost:3000,http://localhost:4000` for dev). **Per-env**: prod must include your prod hostname, test must include the test hostname. | `http://localhost:3000` |
 | `CLERK_WEBHOOK_SIGNING_SECRET` | Signing secret for `/webhooks/clerk`. Configure in the Clerk dashboard. | placeholder |
 | `DATABASE_URL` | Postgres connection string. For Neon, use the `-pooler` endpoint. | none |
 | `DIRECT_URL` | Direct (non-pooler) postgres URL used by `prisma migrate`. Required for Neon (pooler rejects DDL). Empty for self-hosted compose. | `''` |
 | `REDIS_URL` | Redis connection for the cache layer (`L1` in-process + `L2` Redis). | `redis://localhost:6379` |
 | `REDIS_KEY_PREFIX` | Per-app namespace for cache keys. The ioredis client computes `keyPrefix: \`${REDIS_KEY_PREFIX}${NODE_ENV}-\`` so dev/testing/prod never collide. Set to `<app-name>-` (e.g. `web-project-template-`) per fork. | `web-project-template-` |
-| `CORS_ORIGIN` | CSV of browser origins allowed to call the api. | `http://localhost:3000` |
+| `CORS_ORIGIN` | CSV of browser origins allowed to call the api. **Per-env**: prod = your prod hostname, test = test hostname, dev = `http://localhost:3000`. | `http://localhost:3000` |
 | `LOG_LEVEL` | Pino log level (`debug`/`info`/`warn`/`error`). | `info` |
 | `LOG_QUERIES` | When `true`, logs every Prisma query (`apps/api/src/db/prisma-logging.ts`). | `false` |
 | `SEED_ENABLED` | When `true`, runs `prisma/seed.ts` at container boot (creates `admin@template.test` on empty DB). Flip to `false` in environments that don't want the seed. | `true` |
@@ -144,10 +163,13 @@ For a fresh fork, create these GitHub Secrets in order:
 3. `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_TEST_API_URL`
 4. `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY_{DEV,TEST,PROD}` (3)
 5. `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL`
-6. `SENTRY_AUTH_TOKEN_{PROD,TEST}` (2)
-7. `NEXT_PUBLIC_SENTRY_DSN_{PROD,TEST}` (2)
-8. `NEXT_PUBLIC_UMAMI_SCRIPT_URL`, `NEXT_PUBLIC_UMAMI_WEBSITE_ID`
+6. `NEXT_PUBLIC_SITE_URL_{PROD,TEST}` (2)
+7. `SENTRY_AUTH_TOKEN_{PROD,TEST}` (2)
+8. `NEXT_PUBLIC_SENTRY_DSN_{PROD,TEST}` (2)
+9. `NEXT_PUBLIC_UMAMI_SCRIPT_URL`, `NEXT_PUBLIC_UMAMI_WEBSITE_ID`
 
-Total: **20 secrets** + the optional `IMAGE_NAMESPACE` variable.
+Total: **22 secrets** + the optional `IMAGE_NAMESPACE` variable.
 
-Then in Dokploy (or whichever platform runs `docker compose -f docker-compose.prod.yml`), set the **Runtime-only env** table from `host .env` — `CLERK_SECRET_KEY`, `DATABASE_URL`, `SENTRY_DSN`, etc.
+Then in Dokploy (or whichever platform runs `docker compose -f docker-compose.prod.yml`), set the **Runtime-only env** table from `host .env` — `CLERK_SECRET_KEY`, `DATABASE_URL`, `SENTRY_DSN`, `CORS_ORIGIN=<your-prod-hostname>`, `CLERK_AUTHORIZED_PARTIES=<your-prod-hostname>,<existing values>`, etc.
+
+Google Search Console domain verification is done via DNS TXT (no GitHub Secret required).
