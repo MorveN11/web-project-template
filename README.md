@@ -40,6 +40,7 @@ pnpm dev
 | API docs | **@scalar/hono-api-reference** — `/docs` page with live Try-It-Out + JWT auth UI |
 | Webhooks | **Svix** (Clerk's webhook infra) — verified via `verifyWebhook()` from `@clerk/backend/webhooks` |
 | Database | **Postgres 18** (Docker compose for dev + prod) |
+| Cache | **Redis 8** (Docker compose) — L2 cache for Clerk BAPI user memo (`apps/api/src/cache/clerk-user.ts`). Optional — api degrades to in-process L1 when Redis is unreachable. |
 | CI/CD | **GitHub Actions** (PR gate + per-branch release + Dokploy webhook) |
 | Format/lint | **Biome** (single tool, replaces eslint + prettier, one config at root) |
 
@@ -115,10 +116,9 @@ Rule: hoist to root when 2+ packages need it. Runtime deps (`zod`, `@hono/zod-op
    │            apps/web               │
    │          (Next.js 16)             │
    │  app/                             │
-   │   auth/  - public sign-in/up      │
-   │   (authenticated)/ dashboard      │
-   │   (admin)/admin/   ADMIN-only     │
-   │   (client)/client/  CLIENT-only   │
+   │   (public)/  - homepage + auth    │
+   │   (authenticated)/app/ dashboard  │
+   │   (authenticated)/app/admin/ ADMIN│
    │  features/                        │
    │   auth/   getCurrentSession,      │
    │           guards, role context    │
@@ -259,7 +259,7 @@ Three layers, in order:
 | Layer | Lives in | Gates |
 | --- | --- | --- |
 | **Clerk middleware** (proxy.ts) | `apps/web/src/proxy.ts` | Authenticated? If no → sign-in. |
-| **Route layout gate** | `app/(admin)/layout.tsx`, `app/(client)/layout.tsx` | Correct role? If no → redirect. |
+| **Route layout gate** | `app/(authenticated)/app/admin/layout.tsx` | Correct role? If no → redirect. |
 | **API middleware** | `apps/api/src/auth/clerk.ts`, `apps/api/src/auth/role.ts` | JWT valid? Role allowed? If no → 401/403. |
 
 UI render guards (`<RequireRole>`, `<IfRole>`, `useRole()`) hide sub-trees without affecting the API gate. Use them to make pages look clean, but never as the only security check.
@@ -354,15 +354,17 @@ users.openapi(syncSelfRoute, handler)
 
 ```
 app/
-├── (auth)/                 public sign-in / sign-up (Clerk components)
-├── (authenticated)/        any logged-in user — dashboard lives here
-├── (admin)/                ADMIN-only — CLIENTs → /auth/error-rol
-│   └── admin/page.tsx     → /admin
-└── (client)/               CLIENT-only — ADMINs → /dashboard
-    └── client/page.tsx    → /client
+├── (public)/                              public pages — homepage + Clerk sign-in/up
+└── (authenticated)/                       any logged-in user — private routes live under /app/*
+    ├── layout.tsx                         ← auth gate (redirects on no session)
+    └── app/                                ← matches proxy.ts PRIVATE_PREFIX
+        ├── dashboard/page.tsx             → /app/dashboard
+        └── admin/                          ADMIN-only — non-admins → FALLBACK_REDIRECT_URL
+            ├── layout.tsx                 ← admin role gate
+            └── page.tsx                    → /app/admin
 ```
 
-`/(authenticated)` is the default landing for signed-in users; `/(admin)` and `/(client)` are role-specific dashboards. Each group has its own `layout.tsx` that calls `getCurrentSession({ redirectIfNotFound: true })` + role check.
+Private-vs-public is path-driven: `proxy.ts` treats anything under `/app` as auth-required; everything else is public. Add a new private page = drop `app/(authenticated)/app/<feature>/page.tsx`, no `proxy.ts` edit needed.
 
 ---
 
@@ -405,7 +407,7 @@ fix/<name>     ─┤  ← your work, branches off dev
 chore/<name>   ─┤
                │
                ▼ PR (review)
-              test   ← features accumulate here, validates in staging
+              test   ← features accumulate here, validates in testing
                │
                ▼ periodic release PR (test → main)
               main   ← every push triggers a stable release
@@ -417,14 +419,14 @@ chore/<name>   ─┤
 | Branch | Role | Push trigger |
 | --- | --- | --- |
 | `dev` | Day-to-day integration. Features fork from here. | — |
-| `test` | Staging. Features PR in here. Validates in the staging environment. | every push → `release-test.yml` (test-channel prerelease) |
+| `test` | Testing. Features PR in here. Validates in the testing environment. | every push → `release-test.yml` (test-channel prerelease) |
 | `main` | Production. Stable-channel releases. | every push → `release-prod.yml` (stable release) |
 
 #### The cycle in steps
 
 1. **Branch from `dev`.** `git checkout -b feature/my-change dev`.
 2. **PR into `test`.** Open the PR against `test`. Reviewers approve. CI must pass.
-3. **Merge → `test`.** Squash + delete branch. The change is now in the staging environment.
+3. **Merge → `test`.** Squash + delete branch. The change is now in the testing environment.
 4. **Periodic release to `main`.** When `test` is ready to ship, open a PR `test → main`. CI runs again. On merge, `release-prod.yml` publishes `:latest` + `:<semver>` images and curls the prod Dokploy webhook.
 5. **Sync `main` back to `dev`.** After step 4, open (or auto-create) a PR `main → dev` to keep the working branch current. This catches the release commits, hotfixes that landed directly on `main`, and any merge commits.
 
@@ -443,8 +445,8 @@ Two compose files:
 
 | File | Use |
 | --- | --- |
-| `docker-compose.yml` | Dev. Postgres only on `:5440`. Run api + web on host with hot reload. |
-| `docker-compose.prod.yml` | Prod-like local validation. Full stack via Dockerfiles. Exposes web on `:3000`, api on `:4000`. |
+| `docker-compose.yml` | Dev. Postgres on `:5440` + Redis on `:6379`. Run api + web on host with hot reload. |
+| `docker-compose.prod.yml` | Prod-like local validation. Full stack via Dockerfiles. Exposes web on `:3000`, api on `:4000`. Internal Redis on the bridge network. |
 
 ### The `NEXT_PUBLIC_API_URL` rule (read this if syncSelf fails in Docker)
 
@@ -459,6 +461,7 @@ Fix: the compose file hardcodes `NEXT_PUBLIC_API_URL=http://api:8080` as a build
 ### Other Docker notes
 
 - `DATABASE_URL` is forced to `postgres:5432` (compose service name) inside the api container — overrides any host-side `localhost:5440`.
+- `REDIS_URL` is forced to `redis://redis:6379` inside the api container — same hard-pin pattern.
 - `CORS_ORIGIN` defaults to `http://localhost:${WEB_HOST_PORT:-3000}` so it tracks the host-side web port.
 - The api runs `pnpm --filter @app/db migrate:deploy` from `docker-entrypoint.sh` before exec'ing the api.
 
@@ -485,8 +488,122 @@ Fix: the compose file hardcodes `NEXT_PUBLIC_API_URL=http://api:8080` as a build
 This template ships the boilerplate. The only domain entity is **User**. When you fork:
 
 1. **Replace `User` with your domain entity.** Add models to `packages/db/prisma/schema.prisma`, generate a migration, mount routes under `apps/api/src/features/<your-domain>/`.
-2. **Add route groups** for the new entity under `apps/web/src/app/(admin)/<your-domain>/` and `(client)/<your-domain>/`.
+2. **Add route groups** for the new entity under `apps/web/src/app/(authenticated)/app/<your-domain>/` (or `(authenticated)/app/admin/<your-domain>/` if admin-only).
 3. **Wire shared zod DTOs** in `packages/shared-types/src/features/<your-domain>.ts`.
 4. **Add per-feature server actions** in `apps/web/src/features/<your-domain>/actions.ts`.
 
 The boilerplate handles itself: auth, dev tools, build pipeline, lint/format, docker, CI/CD.
+
+## Cloudflare Configuration Guide (Next.js & Astro Universal)
+
+---
+
+### 🔐 Critical Prerequisites (Must-Have Settings)
+
+Before applying any rules, verify that the following core settings are active in your Cloudflare dashboard:
+
+#### 1. SSL/TLS Encryption Mode
+* **Location:** **Domain -> SSL/TLS -> Overview**
+* **Setting:** Set to **`Full (strict)`**
+* **Reason:** Ensures secure, end-to-end encrypted traffic between Cloudflare's Edge network and your origin server (Dokploy / VPS).
+
+#### 2. DNS Proxy Status (Orange Cloud)
+* **Location:** **Domain -> DNS -> Records**
+* **Setting:** Must be **`Proxied`** (Orange Cloud icon) for both `@` (root) and `www` CNAME/A records.
+* **Reason:** Cloudflare CDN, Cache Rules, Redirect Rules, and WAF **will NOT work** if records are set to *DNS only* (Gray Cloud).
+
+---
+
+### 🔄 Redirect Rules (WWW to Apex Domain)
+
+Dashboard location: **Domain -> Rules -> Redirect Rules -> Create rule**.
+
+This rule automatically canonicalizes all incoming traffic by redirecting `www.yourdomain.com` to `yourdomain.com` while preserving all full URI paths and query strings.
+
+#### Rule: `Redirect from WWW to Root`
+* **Rule name:** `Redirect from WWW to Root`
+* **If incoming requests match:** `Wildcard pattern`
+* **Request URL:** `https://www.*`
+* **Target URL:** `https://${1}`
+* **Status code:** `301 - Permanent Redirect`
+* **Preserve query string:** Checked ✅
+* **Place at:** `First`
+
+---
+
+### ⚡ Cache Rules Setup (Next.js + Astro)
+
+Dashboard location: **Domain -> Caching -> Cache Rules -> Create rule**.
+
+> ⚠️ **CRITICAL:** Rules must be configured strictly in the **numbered order (1 to 4)** from top to bottom. Cloudflare evaluates rules in cascade order.
+
+---
+
+#### [1] Rule 1 — `01 - Bypass auth cookie`
+Ensures that any request containing active session cookies (e.g., Clerk) bypasses both CDN and browser cache to protect user data.
+
+* **Rule name:** `01 - Bypass auth cookie`
+* **If incoming requests match:** `Custom filter expression`
+* **Expression (`Edit expression`):**
+  ```http
+  http.cookie contains "__session="
+  ```
+* **Cache eligibility:** `Bypass cache`
+* **Browser TTL:** `Bypass cache`
+
+---
+
+#### [2] Rule 2 — `02 - Cache static assets`
+Caches immutable JavaScript bundles, CSS, and fonts generated by Next.js (`/_next/static/`) and Astro (`/_astro/`) on the Edge network.
+
+* **Rule name:** `02 - Cache static assets`
+* **If incoming requests match:** `Custom filter expression`
+* **Expression (`Edit expression`):**
+  ```http
+  starts_with(http.request.uri.path, "/_next/static/") or starts_with(http.request.uri.path, "/_astro/")
+  ```
+* **Cache eligibility:** `Eligible for cache`
+* **Edge TTL:** `Use cache-control header if present, bypass cache if not`
+* **Browser TTL:** `Respect origin TTL`
+
+---
+
+#### [3] Rule 3 — `03 - Cache image optimizer`
+Stores images processed by Next.js (`/_next/image`) and Astro (`/_image`) in Cloudflare's Edge network, offloading CPU/memory usage from the origin server.
+
+* **Rule name:** `03 - Cache image optimizer`
+* **If incoming requests match:** `Custom filter expression`
+* **Expression (`Edit expression`):**
+  ```http
+  http.request.uri.path eq "/_next/image" or http.request.uri.path eq "/_image"
+  ```
+* **Cache eligibility:** `Eligible for cache`
+* **Edge TTL:** `Ignore cache-control header and use this TTL` → **`1 hour`** (`3600`s)
+* **Browser TTL:** `Override origin and use this TTL` → **`5 minutes`** (`300`s)
+* **Vary:** `Normalize values (Recommended)`
+
+---
+
+## 🔧 Manual Cache Purges
+
+When you change `next.config.ts` (CSP, COEP, COOP, security headers), or replace Firebase Storage assets, the CDN can keep serving stale responses for up to 5 minutes (the origin `s-maxage`).
+
+**Purge immediately:**
+
+1. Dashboard → **Caching → Configuration → Purge Cache**
+2. **Custom Purge** → Type: **Hostname** → enter `resona.yourdomain.com`
+3. Click **Purge**
+
+Or via API (scriptable in CI):
+
+```bash
+curl -X POST "https://api.cloudflare.com/client/v4/zones/<ZONE_ID>/purge_cache" \
+  -H "Authorization: Bearer <API_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"hosts":["resona.yourdomain.com"]}'
+```
+
+Where:
+
+* `<ZONE_ID>` — Dashboard → **Overview** → right sidebar → **API** tab
+* `<API_TOKEN>` — **My Profile → API Tokens → Create Token** → template *"Edit zone cache purge"*, scope your zone

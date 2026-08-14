@@ -15,14 +15,18 @@ Bootstrap a new project by copying the **web-project-template** monorepo templat
 
 ## Inputs (ask the user)
 
-1. **Project name** (kebab-case). Defaults to target-dir basename.
-2. **Target directory**. Required.
-3. **Description** (one line). Required.
-4. **Clerk keys** (optional — leave `replace_me` placeholders for now).
-5. **Container registry + namespace** (optional — defaults to `ghcr.io/<github-user>`).
-6. **Dokploy webhook URLs per env** (optional — gate releases until configured).
+1. **Branch structure** (REQUIRED first question — determines workflow + CI workflows):
+   - **Full gitflow** (`feature → dev → test → main`): three protected branches, the default for serious projects with a real staging environment. Ships both `release.prod.yml` and `release.test.yml`.
+   - **Two-tier** (`feature → dev → main`): skip the staging branch — merge features to `dev`, promote `dev → main` directly. Drops `release.test.yml` + the `test` branch + `check-branch.yml`'s allowance for `test`. Dev environment maps to the `dev` branch's Dokploy deploy.
+   - **Main only** (`feature → main`): a single protected branch. Drops `release.test.yml` + `release.prod.yml` is renamed to `release.yml`. Simplest — one Dokploy environment, one production deploy. The skill still creates a `dev` working branch for daily integration; it just doesn't get a Dokploy env. Choose this if you don't have a staging environment or want to keep infra minimal.
+2. **Project name** (kebab-case). Defaults to target-dir basename.
+3. **Target directory**. Required.
+4. **Description** (one line). Required.
+5. **Clerk keys** (optional — leave `replace_me` placeholders for now).
+6. **Container registry + namespace** (optional — defaults to `ghcr.io/<github-user>`).
+7. **Dokploy webhook URLs per env** (optional — gate releases until configured; only the URLs that match the chosen branch structure).
 
-Stop and ask if any of 1–3 are missing. Do not invent them.
+Stop and ask if any of 2–4 are missing. Do not invent them. The branch question (1) must be answered before any branch-creating step.
 
 ## Prereqs (verify before starting)
 
@@ -61,20 +65,23 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
    - `.env`, `.env.*` (secrets never copy)
    - `.claude/skills/init-from-template/` and `.claude/templates/` (the bootstrap skill + embedded template copy stay with the source)
 
-3. **Rename the workspace.** Replace `@app/<name>` and `web-project-template` with the new project's name across every `package.json` in `apps/*` and `packages/*`. Update `README.md` and `AGENTS.md` too. Rename the docker compose `name:`, image defaults (`web-project-template-api:local`), and POSTGRES_DB default (`web_project_template`).
+3. **Rename the workspace.** Replace `@app/<name>` and `web-project-template` with the new project's name across every `package.json` in `apps/*` and `packages/*`. Update `README.md`, `AGENTS.md`, and `CLAUDE.md` too. Rename the docker compose `name:`, image defaults (`web-project-template-api:local`), and POSTGRES_DB default (`web_project_template`).
 
-3a. **Apply the PRD (if provided).** See "Using the PRD" above. Update `package.json` description, `README.md` intro, add a "Project context" section to `AGENTS.md`, refresh `apps/web/src/app/page.tsx` landing copy, and (only if the PRD names a concrete first entity) scaffold placeholder feature files. Do not generate business logic — the scaffold stays boilerplate.
+3a. **Apply the PRD (if provided).** See "Using the PRD" above. Update `package.json` description, `README.md` intro, add a "Project context" section to `AGENTS.md` and replace `CLAUDE.md`'s generic briefing with the product's domain, business rules, and constraints, refresh `apps/web/src/app/page.tsx` landing copy, and (only if the PRD names a concrete first entity) scaffold placeholder feature files. Do not generate business logic — the scaffold stays boilerplate.
 
-4. **Regenerate env examples.** Replace `replace_me` placeholders with the user's Clerk keys (if provided). Never write real secrets into `.env.example` files — those are committed. Do not add `NEXT_PUBLIC_API_URL` anywhere — the compose file hardcodes the in-container URL (`http://api:8080`) for Docker and `apps/web/src/lib/env/client.ts` provides the dev default. Seed is host-only (`pnpm db:seed`); do not add `SEED_ENABLED` to any `.env*` or compose file.
+4. **Regenerate env examples.** Replace `replace_me` placeholders with the user's Clerk keys (if provided). Never write real secrets into `.env.example` files — those are committed. Do not add `NEXT_PUBLIC_API_URL` anywhere — the compose file hardcodes the in-container URL (`http://api:8080`) for Docker and `apps/web/src/lib/env/client.ts` provides the dev default. The template ships with `SEED_ENABLED=true` in the root `.env.example`; the compose files hard-pin the same. Forks that don't want the seed flip `SEED_ENABLED=false` per environment — they don't delete the file.
 
-5. **Re-init git + branches.**
+5. **Re-init git + branches.** Depends on the branch-structure answer from input 1:
    - `cd <target>`
    - `git init`
-   - Create the three protected branches: `git checkout -b dev`, `git checkout -b test`, `git checkout -b main`, then `git checkout dev` (default working branch).
-   - Initial commit on `dev`: `git add -A && git commit -m "chore: bootstrap from web-project-template" --no-verify` (or `chore: bootstrap from web-project-template with <project name>` if a PRD was applied).
-   - Mirror to `test` and `main` so all three share the same initial SHA: `git push origin dev test main` after configuring the remote.
-   - Set remote: `git remote add origin git@github.com:<user>/<repo>.git`
-   - Tell the user the cycle: features fork from `dev`, PR into `test`, periodic release `test → main`, sync `main → dev`. The detailed flow lives in `CONTRIBUTING.md` § 2.
+   - **Full gitflow** (default): create `dev`, `test`, `main`. Initial commit on `dev`, mirror to `test` and `main`. Cycle: features fork from `dev`, PR into `test`, periodic release `test → main`, sync `main → dev`. All three release workflows (`release.prod.yml`, `release.test.yml`) stay in the repo.
+   - **Two-tier**: create `dev`, `main` only. Initial commit on `dev`, mirror to `main`. Delete `.github/workflows/release.test.yml`. Edit `.github/filters.yml` and `.github/workflows/check-branch.yml` to drop the `test` branch allowance (if either lists it). Cycle: features fork from `dev`, PR into `main`. Only `release.prod.yml` survives.
+   - **Main only**: create `dev` (working branch) + `main` (protected). Initial commit on `dev`, no mirror step beyond `main`. Delete `.github/workflows/release.test.yml`. Rename `.github/workflows/release.prod.yml` to `.github/workflows/release.yml`. Cycle: features fork from `dev`, PR into `main`. Single deploy on push to `main`.
+   - In all three cases: `git checkout dev` as the default working branch after init.
+   - Initial commit: `git add -A && git commit -m "chore: bootstrap from web-project-template" --no-verify` (or `chore: bootstrap from web-project-template with <project name>` if a PRD was applied).
+   - Mirror push to the chosen protected branches: `git push origin dev test main` (or just `dev main`, or just `main` depending on the variant) after configuring the remote.
+   - Set remote: `git remote add origin git@github.com:<user>/<repo>.git`.
+   - The detailed flow for each variant lives in `CONTRIBUTING.md` § 2; update that file in the same pass to match the chosen structure.
 
 6. **Install + verify.**
    - `pnpm install` — apps/api's `postinstall` runs `pnpm --filter @app/db generate`.
@@ -83,26 +90,29 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
    - `pnpm build` — confirm both apps compile end-to-end (catches TS 6 `rootDir`, `outDir` includes, and esbuild external resolution errors).
    - `docker compose -f docker-compose.prod.yml --env-file .env config | grep NODE_ENV` — confirm `NODE_ENV: production` is hard-pinned for api + web (root `.env` carries `NODE_ENV=development` for dev; the prod compose must override).
 
-7. **Configure GitHub Secrets** (remind the user): see the scaffolded `.github/SECRETS.md`. Required:
-   - `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
-   - `DOKPLOY_URL`
-   - `DOKPLOY_DEPLOY_WEBHOOK_{API,WEB}_{PROD,TEST}`
-   - `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-   - `NEXT_PUBLIC_TEST_API_URL` (the public URL where the test deployment's api is reachable; CI passes it as a Docker build arg)
+7. **Configure GitHub Secrets** (remind the user): see the scaffolded `.github/SECRETS.md`. Required set depends on the branch structure:
+   - **Always**: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+   - **Full gitflow**: `DOKPLOY_URL`, `DOKPLOY_DEPLOY_WEBHOOK_{API,WEB}_{PROD,TEST}` (×4), `NEXT_PUBLIC_TEST_API_URL` (public URL where the test deployment's api is reachable; CI passes it as a Docker build arg).
+   - **Two-tier**: `DOKPLOY_URL`, `DOKPLOY_DEPLOY_WEBHOOK_{API,WEB}_{PROD}` (×2). No `TEST` webhooks, no test API URL.
+   - **Main only**: `DOKPLOY_URL`, `DOKPLOY_DEPLOY_WEBHOOK_{API,WEB}_{PROD}` (×2). Same as two-tier — single deploy env.
 
 8. **Report.** Tell the user:
-   - Tree copied and branches set.
+   - Tree copied and branches set per the chosen structure.
+   - Which release workflows were kept / renamed / deleted.
    - If a PRD was applied: which files were PRD-aware (package.json description, README intro, AGENTS context, page.tsx landing, optional first-feature scaffold) and which placeholder TODOs remain.
-   - `pnpm compose` for dev (uses `docker-compose.yml`, postgres only).
-   - `pnpm compose:prod` for prod-like local validation (full stack via Dockerfiles; ~2s api cold boot, ~0s web).
-   - Which GitHub secrets to add before merging to `test`/`main`.
-   - The 3-tier cycle: features fork from `dev`, PR to `test`, periodic release `test → main`, sync `main → dev`.
+   - `pnpm compose` for dev (uses `docker-compose.yml`, postgres + redis).
+   - `pnpm compose:prod` for prod-like local validation (full stack via Dockerfiles; the seed runs at api boot and creates `admin@template.test` on the empty DB — use it to confirm the read pipeline end-to-end, or flip `SEED_ENABLED=false` if you don't want it).
+   - Which GitHub secrets to add (matches the chosen branch structure).
+   - The cycle diagram (one of):
+     - Full gitflow: features fork from `dev`, PR to `test`, periodic release `test → main`, sync `main → dev`.
+     - Two-tier: features fork from `dev`, PR to `main`, periodic release `dev → main`, no separate staging branch.
+     - Main only: features fork from `dev`, PR to `main`, single deploy.
 
 ## Architecture summary
 
 | Concern | Where it lives |
 | --- | --- |
-| Schema + generated types | `packages/db/prisma/schema.prisma` + `packages/db/prisma.config.js` (Prisma 7: URL lives in config, runtime uses `@prisma/adapter-pg`). Exposed via `@app/db`. |
+| Schema + generated types | `packages/db/prisma/schema.prisma` + `packages/db/prisma.config.js` (Prisma 7: URL lives in config, runtime uses `@prisma/adapter-pg` for docker or `@prisma/adapter-neon` for Neon — auto-detected by URL substring). Exposed via `@app/db`. |
 | Workspace packages (JS) | `@app/db` + `@app/shared-types` ship a `dist/` produced by `tsc -p tsconfig.build.json`. `exports` maps `import` → `dist/`, `dev` → `src/` so local `tsx --conditions=dev` keeps using source. |
 | Backend runtime | `apps/api` — Hono + Prisma + Clerk JWT. Built as an esbuild bundle (1.1MB), runs under plain `node` in production. |
 | Backend Repository layer | `apps/api/src/<feature>/repository.ts` — fluent Prisma facade |
@@ -114,15 +124,24 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 | Frontend api-client logging | `apps/web/src/lib/api-client.ts` — `api:request` / `api:response` / `api:error` |
 | Frontend server-action result wrapper | `apps/web/src/lib/safe-action.ts` |
 | Frontend env validation | `apps/web/src/lib/env/{client,server}.ts` |
-| Frontend auth-state cache buster | `apps/web/src/features/auth/auth-state-sync.tsx` — `router.refresh()` on `isSignedIn` flip so server components re-render after Clerk's soft nav |
 | Single lint/format config | `biome.json` (root) — covers every package |
 | Hoisted devDependencies | `package.json` (root): biome, typescript, tsx, vitest, @types/node, zod, @hono/zod-openapi |
 | esbuild (api build only) | `apps/api/devDependencies` — used by the api build script, not hoisted |
 | Root env (compose reads from this) | `.env` (gitignored, `.env.example` is the template) |
-| Docker (dev) | `docker-compose.yml` — postgres only |
-| Docker (prod-like) | `docker-compose.prod.yml` — full stack via local Dockerfiles. api runner is `node:alpine` slim (no pnpm, no tsx), web runner is `gcr.io/distroless/nodejs24-debian12:nonroot` |
-| API runner prod manifest | `apps/api/package.runtime.json` — flat 6-dep manifest used by `npm install --omit=dev` in the slim runner (no workspace) |
+| Docker (dev) | `docker-compose.yml` — postgres + redis. api + web run on the host via `pnpm dev:*` (no bind-mount file-watcher issues). |
+| Docker (prod-like) | `docker-compose.prod.yml` — full stack via local Dockerfiles. api runner is `node:24-bookworm-slim` (no pnpm, no corepack, no tsx — the seed is bundled to JS in the build stage), web runner is `gcr.io/distroless/nodejs24-debian12:nonroot`. Redis runs on the prod bridge network as a sibling service. |
+| API runner prod manifest | `apps/api/package.runtime.json` — flat manifest (prisma, pg, pino, redis, @prisma/adapter-pg, @prisma/adapter-neon, @neondatabase/serverless, @sentry/node, dotenv) used by `npm install --omit=dev` in the slim runner (no workspace). Pinned exact versions, no carets. The seed runs as a bundled JS from `apps/api/dist/seed.js`, so workspace deps are not needed at runtime. |
+| Auth route groups | `apps/web/src/app/(public)/`, `(authenticated)/app/<feature>/` | `(public)/` for marketing + Clerk sign-in. `(authenticated)/app/` for everything behind Clerk auth (proxy.ts gates anything under `/app`). Admin role check lives in `(authenticated)/app/admin/layout.tsx` — a sub-layout that inherits the auth gate. |
+| Public web routes | `apps/web/src/app/(public)/` | Homepage (`/`), Clerk sign-in/up (`/auth/*`), and the `/health` liveness probe. |
+| Cache (api) | `apps/api/src/cache/{redis,clerk-user,user-session}.ts` | L1 in-process Map (clerk-user only) + L2 Redis. 30 s TTL. Cache wrapper degrades silently — Redis down → fall back to L1, never 5xx. Cache keys namespaced by `env.NODE_ENV` (`prod:` vs `dev:`) to avoid collisions across instances. |
+| Redis (cache) | `apps/api/src/cache/redis.ts` + `docker-compose*.yml` | Single-node `redis:8-alpine`. Used for Clerk-user memo (shared across api replicas) and UserSession DTO cache (eliminates per-render DB queries for warm sessions). |
+| Seed | `packages/db/prisma/seed.ts` (bundled to `apps/api/dist/seed.js`) + `apps/api/docker-entrypoint.sh` | Runs at api container boot, creates `admin@template.test` (ADMIN) on empty DB, skips with log if any users exist. Gated by `SEED_ENABLED` (default `true`, hard-pinned in compose). Forks that don't want it set `SEED_ENABLED=false` per environment — they don't delete the file. The api `build` script bundles the seed via esbuild so the slim image needs no `tsx`/`@clerk/backend` in node_modules. |
+| Robot & sitemap | `apps/web/src/app/robots.ts` | `MetadataRoute.Robots` — disallows `/app/` and `/auth/` from crawlers in prod; everything off in non-prod. `/health` is always public. |
+| Error monitoring (web) | `apps/web/sentry.{client,edge,server}.config.ts` + `apps/web/src/instrumentation.ts` — `@sentry/nextjs` SDK. Source maps uploaded at build time via `SENTRY_AUTH_TOKEN` build arg. Browser-side DSN inlined via `NEXT_PUBLIC_SENTRY_DSN`. |
+| GlitchTip tunnel (web) | `apps/web/src/app/api/glitchtip-tunnel/route.ts` — server-side proxy to GlitchTip ingest endpoint to bypass ad-blockers / browser CSP. Next.js route handler, no auth (tunnel is single-tenant). |
+| Analytics (web) | `apps/web/src/components/umami-script.tsx` — `<Script src={NEXT_PUBLIC_UMAMI_SCRIPT_URL} data-website-id={NEXT_PUBLIC_UMAMI_WEBSITE_ID} />` rendered in the root layout only when `NODE_ENV === 'production'`. Empty DSN → component renders nothing. |
 | CI workflows | `.github/workflows/` (5 files: ci, check-branch, check-pull-request, release.prod, release.test) |
+| Error monitoring (api) | `apps/api/src/sentry.ts` — `@sentry/node` SDK init from `env.SENTRY_DSN`. Disabled when DSN empty. No-op at boot. |
 | GH Actions version pinning | major-only (v6, v5, v4, v2) — see `.github/workflows/*.yml` |
 
 ## Hard rules (NEVER skip)
@@ -139,9 +158,13 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 - The template ships only the `User` domain. Replace it with the real domain entity when forking. Do not re-introduce placeholder features like `items`.
 - Pin GH Action versions to major-only (`@v6`, not `@v6.0.0`). When forking, keep this convention.
 - Engines: `node >=24`, `pnpm >=11`. Sub-packages must NOT carry duplicate biome, typescript, tsx, vitest, @types/node, zod, or @hono/zod-openapi — those are hoisted to the root.
+- Web `next` version pinned to `16.3.0`. Next 16.2.x had a known bug where `proxy.ts` failed to register in the runtime manifest (Clerk's `auth()` threw "clerkMiddleware() not detected"). 16.3.x fixed it; bumping to 16.3.0+ is required for `proxy.ts` to work.
+- Redis driver is `ioredis` (not `node-redis`). We migrated away from `node-redis` v6 because the `createClient({ url })` call infers a `RespVersions = 2` generic that doesn't unify with a top-level `RedisClient` alias (defaults to RESP3). ioredis is a concrete class — no generic dance, stable types, single-import surface.
+- **Runtime dep hoisting policy**: any npm package used in 2+ workspace projects is declared at the **root** `package.json` (and only there). `.npmrc` sets `public-hoist-pattern[]=*` so sub-packages resolve the root version without re-declaring. The root `package.json` is the single source of truth for shared versions — bumping `@clerk/backend` (or any other multi-project dep) happens in one place. Single-project deps (e.g. `redis` in api only, `next` in web only) stay declared in their respective `package.json`. Workspace deps (`@app/db`, `@app/shared-types`) are exempt — they use `workspace:*` and live in `pnpm-workspace.yaml`.
 - `docker-compose.prod.yml` MUST hard-pin `NODE_ENV: production` for both `api` and `web` services. Root `.env` carries `NODE_ENV=development` for local dev; if it leaks into the prod compose, `logger.ts` tries to load `pino-pretty` at runtime and crashes because the slim image doesn't ship it.
-- `apps/api/package.runtime.json` is the source of truth for what runs in the slim api container. If you add a new runtime dep, add it here too — workspace deps are not honored at runtime.
-- Seed is host-only: `pnpm db:seed` from the repo root. Do not add `SEED_ENABLED` to env files or compose; the slim api image has no `tsx` to run `prisma/seed.ts`.
+- `apps/api/package.runtime.json` is the source of truth for what runs in the slim api container. If you add a new runtime dep, add it here too — workspace deps are not honored at runtime. Versions are pinned exact (no `^`) so `npm install` is deterministic without a lockfile.
+- The seed runs at api container boot (`packages/db/prisma/seed.ts` bundled into `apps/api/dist/seed.js` by the api `build` step; `prisma.config.js` invokes it as `node apps/api/dist/seed.js`). Gated by `SEED_ENABLED` (default `true`; hard-pinned in compose). Forks that don't want it flip the flag to `false` per environment — they don't delete the file. The seed is **pure Prisma**: it inserts one placeholder `User` row (ADMIN role, sentinel `clerkId`) on an empty DB to validate the write path. It does NOT touch Clerk BAPI — to make the seeded user sign-in-able, the matching Clerk account has to be created manually in the Clerk dashboard with the same `clerkId` sentinel. The slim api image needs no `tsx` or `@clerk/backend` (the seed is pure DB) because esbuild inlines only what's actually used at build time.
+- Cache invalidation contract: any code path that mutates the local `User` row (webhook handlers, admin `create`, future role-update endpoints) must call BOTH `invalidateUserSessionCached(clerkId)` and `invalidateClerkUserCached(clerkId)`. Skipping the second one creates a 30-60 s window where `syncSelf` re-reads a stale Clerk role from the BAPI memo and reverts the DB back to the old role. The pattern is in `apps/api/src/features/webhooks/service.ts` and `users/service.ts`.
 
 ## Keeping the template + skill in sync
 
@@ -150,29 +173,35 @@ If neither path exists, ask the user to run the bootstrap sync (rsync from the s
 When you change template files:
 
 1. Edit the project files at `<template-repo>/` (e.g. `/home/morven/code/web-project-template/`).
-2. Mirror to global cache:
+2. Mirror to global cache. The order of `--include` BEFORE `--exclude` is mandatory — `*.example` must be whitelisted BEFORE `.env.*` (which otherwise matches `.env.example` and skips it):
    ```
    rsync -a --delete \
      --exclude='node_modules' --exclude='.git' --exclude='dist' --exclude='build' \
      --exclude='.next' --exclude='.containers' --exclude='*.log' \
-     --exclude='coverage' --exclude='.env' --exclude='.env.*' \
+     --exclude='coverage' --exclude='.env' --include='*.example' --exclude='.env.*' \
      --exclude='.claude' \
      <template-repo>/ \
      ~/.claude/templates/web-project-template/
    ```
-3. Mirror to project-local copy (so `init-from-template` works on a fresh clone before the global cache is set up):
+3. Mirror to project-local copy (so `init-from-template` works on a fresh clone before the global cache is set up). Same include-before-exclude rule applies:
    ```
    mkdir -p <template-repo>/.claude/templates
    rsync -a --delete \
      --exclude='node_modules' --exclude='.git' --exclude='dist' --exclude='build' \
      --exclude='.next' --exclude='.containers' --exclude='*.log' \
-     --exclude='coverage' --exclude='.env' --exclude='.env.*' \
+     --exclude='coverage' --exclude='.env' --include='*.example' --exclude='.env.*' \
      --exclude='.claude' \
      <template-repo>/ \
      <template-repo>/.claude/templates/web-project-template/
    ```
 4. Update this skill body if the changes affected inputs, branches, hard rules, or step ordering.
-5. Copy the updated SKILL.md (and `references/`) to `~/.claude/skills/init-from-template/` if you want it globally available across sessions.
+5. Copy the updated SKILL.md (and `references/`) to `~/.claude/skills/init-from-template/` if you want it globally available across sessions:
+   ```
+   cp <template-repo>/.claude/skills/init-from-template/SKILL.md \
+      ~/.claude/skills/init-from-template/SKILL.md
+   cp <template-repo>/.claude/skills/init-from-template/references/template-tree.md \
+      ~/.claude/skills/init-from-template/references/template-tree.md
+   ```
 
 Both skill locations — `~/.claude/skills/init-from-template/` (global, system-wide) and `<repo>/.claude/skills/init-from-template/` (project-embedded) — are kept identical.
 
@@ -183,7 +212,11 @@ Both skill locations — `~/.claude/skills/init-from-template/` (global, system-
 - Postgres not running → `pnpm compose` first; `POSTGRES_HOST_PORT` must match `DATABASE_URL`.
 - `pnpm compose:prod` fails to find images → set `API_IMAGE`/`WEB_IMAGE` in `.env` or let it build locally without them.
 - `pnpm compose:prod` api crashes with `unable to determine transport target for "pino-pretty"` → root `.env` leaked `NODE_ENV=development` into the prod compose. Confirm `docker-compose.prod.yml` hard-pins `NODE_ENV: production` for both api + web.
-- `pnpm compose:prod` api entrypoint fails with `spawn tsx ENOENT` (seed) → the seed branch was left in the entrypoint. The slim api image has no `tsx`; remove the `SEED_ENABLED` branch and run `pnpm db:seed` from the host instead.
+- `pnpm compose:prod` api logs `redis: connect failed, degrading` repeatedly → `REDIS_URL` in the api service env didn't get hard-pinned. Confirm `docker-compose.prod.yml` sets `REDIS_URL: redis://redis:6379` (the in-container hostname, not `localhost`). The api falls back to in-process L1 when Redis is unreachable — auth still works, just no cross-replica cache sharing.
+- `pnpm compose:prod` seed fails with `Can't find schema` → `packages/db/prisma` is missing from the runner. Confirm the api `Dockerfile` runner stage still has `COPY --from=build /app/packages/db/prisma ./packages/db/prisma` (line ~58).
+- `/app/admin` (or any `/app/*` route) 401s immediately even when signed in → `proxy.ts` was edited to remove the `PRIVATE_PREFIX = '/app'` check. The route is reachable only when `pathname.startsWith('/app')` triggers `auth.protect()`. Restore the constant.
+- `syncSelf` repeatedly re-stamps Clerk with the same role (visible in api logs as `syncSelf: stamped Clerk privateMetadata`) → one of the cache invalidators is missing from the webhook or admin code path. Both `invalidateUserSessionCached` and `invalidateClerkUserCached` MUST fire after any User row mutation; missing the BAPI memo invalidator creates a 30 s window where the cached Clerk role is stale and `syncSelf` re-overwrites the DB back to the old role.
+- Webhook fires `user.updated` but `syncSelf` still returns stale data for ~30 s → Redis is down or the namespace prefix (`prod:` / `dev:`) doesn't match between writer and reader. The `L2_KEY` factory in `cache/user-session.ts` and `cache/clerk-user.ts` uses `env.NODE_ENV`; if a fork changes one but not the other the keys diverge.
 - `pnpm build` fails with `error TS5011: rootDir must be explicitly set` in `apps/api` → add `"rootDir": "./src"` to `apps/api/tsconfig.build.json`. TS 6 enforces this when `outDir` is set without an explicit rootDir.
 - `pnpm build` fails in `packages/db` with `File .../generated/client.ts is not under 'rootDir' '.../src'` → the new `prisma-client` generator writes outside `rootDir`. Either revert the generator to `prisma-client-js` or remove `rootDir` and include both `src/` and `generated/` in `tsconfig.build.json`.
 - esbuild bundle fails with `Could not resolve "@app/db"` during docker build → `packages/db/dist/` is missing. The api `build` script chains `pnpm --filter @app/db generate && pnpm --filter @app/shared-types --filter @app/db build && esbuild …`, so as long as that script is invoked (not the esbuild command directly) the workspace `dist/` lands before the bundle resolves. The docker build stage just runs `pnpm --filter @app/api build`; no manual pre-step needed in the Dockerfile.
@@ -191,12 +224,13 @@ Both skill locations — `~/.claude/skills/init-from-template/` (global, system-
 - CI api build fails with `Could not resolve "@app/db"` / `"@app/shared-types"` → esbuild resolves via the `import` export (which points to `dist/`), but `dist/` doesn't exist yet. The `apps/api` `build` script chains `pnpm --filter @app/db generate && pnpm --filter @app/shared-types --filter @app/db build` BEFORE the esbuild call so `dist/` exists when the bundle resolves workspace imports. Note: esbuild's `--conditions=dev` flag does NOT work here — it adds the condition but doesn't drop the default `node`/`import` ones, so `import → ./dist/index.js` still wins. The customConditions tsconfig trick works for typecheck but not for the esbuild bundle.
 - CI lint errors from shadcn components → confirm `biome.json` (root) excludes `!**/apps/**/src/components/ui`.
 - Docker: syncSelf fails, infinite redirect loop → `NEXT_PUBLIC_API_URL` was baked at build time pointing to `localhost:4000`. Compose must hardcode `http://api:8080` as the build ARG. See the README "Docker" section.
-- After sign-in the user appears logged-out until a hard refresh → mount `<AuthStateSync />` inside `Providers` (already shipped). It calls `router.refresh()` on every `isSignedIn` flip so server components re-render with fresh auth context.
 - Dokploy webhook fails → check the corresponding `DOKPLOY_DEPLOY_WEBHOOK_*` secret exists and the Dokploy side accepts `tag`+`service` query params.
 - Template files missing → `$TEMPLATE_DIR` doesn't exist or wasn't synced. Re-stage from the project copy via rsync (see "Keeping the template + skill in sync" above).
 - VS Code shows `{ expected` errors on Tailwind v4 at-rules (`@theme`, `@utility`, `@apply`, `@custom-variant`) → these are CSS Language Service false positives; add `"css.lint.unknownAtRules": "ignore"` to `.vscode/settings.json`, or install the official `biomejs.biome` extension (don't run `fronterior.biome-monorepo` alongside it).
 - VS Code takes forever to load → check that `.next/`, `node_modules/`, and `.claude/` are excluded from the file watcher in `.vscode/settings.json` (`files.watcherExclude`). 400+ MB of stale build artifacts is the usual culprit.
 - Sub-package has a `biome.json` → wrong. One config at root only. Per-package overrides were removed when the root config absorbed them.
+- `pnpm dev` runs but every page logs `Clerk: auth() was called but Clerk can't detect usage of clerkMiddleware()` even though `proxy.ts` is correct → stale `.next/dev/` cache from a previous Turbopack compilation. Fix: `rm -rf apps/web/.next && pnpm dev`. The `.next/dev/` chunks aren't always invalidated when source changes, especially after major edits to `proxy.ts` or `next.config.ts`. The standalone `.next/standalone/` should be wiped alongside it (`rm -rf apps/web/.next apps/web/.next/standalone`) for a complete rebuild.
+- `pnpm compose:prod` web container logs `Clerk: auth() was called but Clerk can't detect usage of clerkMiddleware()` even with `proxy.ts` matching chacanos exactly → stale `.next` cache. Fix: `rm -rf apps/web/.next apps/web/.next/standalone && pnpm compose:prod --build`. If the error persists, check that `apps/web/src/proxy.ts` has `export default clerkMiddleware(...)` — a missing default export breaks the manifest silently.
 
 ## Anti-patterns to avoid
 
@@ -210,7 +244,10 @@ Both skill locations — `~/.claude/skills/init-from-template/` (global, system-
 - Adding shared devDependencies (biome, typescript, tsx, vitest, @types/node, zod, @hono/zod-openapi) to individual packages. Hoist to root.
 - Setting `shared-workspace-lockfile: false` in `pnpm-workspace.yaml`. The default (single root lockfile) prevents version drift across workspaces — the whole point of monorepos.
 - Adding `@/` import aliases without also updating `tsconfig.json` `paths`. Both required.
-- PRing a `feature/*` branch directly to `main`. Gitflow is `feature → dev → test → main → dev`.
+- PRing a `feature/*` branch directly to `main`. Gitflow default is `feature → dev → test → main → dev`; the skill asks up front which variant the fork uses and configures the workflows accordingly.
+- Wrapping `getCurrentSession` in `cache()` directly. React `cache()` keys on arg identity; passing `{ redirectIfNotFound: ... }` (a fresh object literal) defeats the memo. The whole point of the split in `actions.ts` (zero-arg `readSession` + thin dispatch wrapper) is to make the memo hit. Skip the split and `/app/admin` does 6 DB queries per render instead of 1.
+- Editing `proxy.ts` to gate by explicit page list instead of `pathname.startsWith(PRIVATE_PREFIX)`. The `/app/*` prefix convention is the whole point — adding a new private page is a 0-edit operation as long as the prefix holds. A page-by-page allowlist puts that friction back.
+- Adding a `SEED_ENABLED` env var to opt OUT of the seed at the env level (the default `false` already does this for bare clones). The flag exists so forks can keep the seed file in the repo but disable it per environment without deleting the file. Do not flip the default to `true` and run the seed in real prod — the seed is a backdoor.
 
 ## Tree snapshot
 

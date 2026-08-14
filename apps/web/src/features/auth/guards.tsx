@@ -3,9 +3,9 @@
 // Both components read the session via `getCurrentSession({
 // redirectIfNotFound: false })` — they never redirect, they just hide
 // the children when the role doesn't match. Use them to gate
-// sub-trees inside an already-accessible page; use the route group
-// layouts (`(admin)/`, `(client)/`) to gate whole pages, since
-// those can redirect.
+// sub-trees inside an already-accessible page; use a route group's
+// `layout.tsx` (e.g. `(authenticated)/admin/`) to gate whole pages,
+// since those can redirect.
 //
 // `<RequireRole role={UserRole.ADMIN}>` — renders `children` only
 // when the current session matches the role; otherwise renders

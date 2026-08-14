@@ -8,10 +8,10 @@
 //   <IfRole     role={…}>                      → same, sugar at call sites
 //
 // Client-side (read session in components):
-//   <RoleProvider value={session}>…</RoleProvider>
-//   useRole()           → UserSession (throws outside the provider)
-//   useIsAdmin()        → boolean
-//   useIsClient()       → boolean
+//   <RoleProvider value={session | null}>…</RoleProvider>  // always mounted in the root layout
+//   useRole()           → UserSession | null (null when anonymous)
+//   useIsAdmin()        → boolean (false when anonymous)
+//   useIsClient()       → boolean (false when anonymous)
 //
 // File layout:
 //   actions.ts              — Clerk session entry points, server-action boundary

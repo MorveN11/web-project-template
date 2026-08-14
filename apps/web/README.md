@@ -2,9 +2,9 @@
 
 Next.js 16 frontend (app router, Turbopack). Three concurrent surfaces share the same root layout:
 
-- **Marketing / auth pages** under `app/(auth)/` — Clerk SignIn / SignUp components, no session required
+- **Public pages** under `app/(public)/` — marketing, homepage, Clerk SignIn / SignUp
 - **Authenticated app** under `app/(authenticated)/` — any logged-in user; default landing for sign-ins
-- **Role-specific zones** under `app/(admin)/` and `app/(client)/` — gated by their `layout.tsx`
+- **Admin zone** under `app/(authenticated)/admin/` — admin-only sub-layout gates the role
 
 ## Run
 
@@ -19,17 +19,19 @@ Open http://localhost:3000. The web reads its own `.env` (`apps/web/.env`) plus 
 ```
 apps/web/src/
 ├── app/                                Next.js App Router
-│   ├── (auth)/                          public sign-in / sign-up
-│   ├── (authenticated)/                 any logged-in user — dashboard lives here
-│   ├── (admin)/                         ADMIN-only (layout gates role)
-│   │   ├── layout.tsx                  ← admin gate (redirects non-admins)
-│   │   └── admin/page.tsx               → /admin
-│   ├── (client)/                        CLIENT-only (layout gates role)
-│   │   ├── layout.tsx                  ← client gate (redirects admins)
-│   │   └── client/page.tsx              → /client
+│   ├── (public)/                        public pages — homepage, Clerk sign-in/up
+│   │   ├── page.tsx                    → /
+│   │   └── auth/                        → /auth/* (Clerk SignIn / SignUp)
+│   ├── (authenticated)/                 any logged-in user — private routes live under /app/*
+│   │   ├── layout.tsx                  ← auth gate (redirects on no session)
+│   │   └── app/                         ← all private URLs (matches proxy.ts PRIVATE_PREFIX)
+│   │       ├── dashboard/page.tsx       → /app/dashboard
+│   │       └── admin/                   ADMIN-only (sub-layout gates role)
+│   │           ├── layout.tsx          ← admin gate (redirects non-admins)
+│   │           └── page.tsx             → /app/admin
 │   ├── globals.css                      Tailwind v4 + Clerk shadcn theme
 │   ├── layout.tsx                      root layout — reads session, wraps <RoleProvider>
-│   ├── page.tsx                         public homepage
+│   ├── robots.ts                        MetadataRoute — blocks crawlers on private routes
 │   └── providers.tsx                    client-side provider stack (Clerk, Toaster)
 ├── components/
 │   ├── layout/                          Navbar + Footer
@@ -55,13 +57,13 @@ apps/web/src/
 
 | Group | URL prefix | Auth | Role gate |
 | --- | --- | --- | --- |
-| `(authenticated)` | none (default) | `getCurrentSession({ redirectIfNotFound: true })` | none |
-| `(admin)` | none | `getCurrentSession({ redirectIfNotFound: true })` + `role !== ADMIN` → `/auth/error-rol` | ADMIN |
-| `(client)` | none | `getCurrentSession({ redirectIfNotFound: true })` + `role !== CLIENT` → `/dashboard` | CLIENT |
+| `(public)` | none | none | none |
+| `(authenticated)/app` | `/app/*` | `getCurrentSession({ redirectIfNotFound: true })` | none |
+| `(authenticated)/app/admin` | `/app/admin/*` | inherited from parent + `role !== ADMIN` → `FALLBACK_REDIRECT_URL` | ADMIN |
 
-**Next.js convention**: groups in `(parens)` don't appear in the URL. `app/(admin)/admin/page.tsx` resolves to `/admin`, not `/admin/admin`.
+**Next.js convention**: groups in `(parens)` don't appear in the URL. `app/(authenticated)/app/admin/page.tsx` resolves to `/app/admin`.
 
-**Why role groups at all** — lets you build role-specific UIs without polluting the URL. Add a new admin page by dropping `app/(admin)/<feature>/page.tsx`; same for client.
+**Private-vs-public is path-driven** — `proxy.ts` treats anything under `/app` as private; everything else is public. Add a new private page by dropping `app/(authenticated)/app/<feature>/page.tsx`. The URL gets `/app/<feature>`. No edit to `proxy.ts` needed.
 
 ## Render guards
 
@@ -100,9 +102,8 @@ function NavLinks() {
   const isAdmin = useIsAdmin();
   return (
     <>
-      <Link href="/dashboard">Home</Link>
-      {isAdmin && <Link href="/admin">Admin</Link>}
-      {role === UserRole.CLIENT && <Link href="/client">My stuff</Link>}
+      <Link href="/app/dashboard">Home</Link>
+      {isAdmin && <Link href="/app/admin">Admin</Link>}
       <span>{firstName}</span>
     </>
   );
@@ -110,6 +111,10 @@ function NavLinks() {
 ```
 
 `RoleProvider` is mounted in the root layout (`app/layout.tsx`), which reads the session server-side and passes a serializable value to the client. Every component in the tree has access without re-fetching Clerk.
+
+### Cache dedup (`cache()` in `features/auth/actions.ts`)
+
+Both `getCurrentSession` and `getCurrentToken` use a zero-arg memoized core (`readSession` / `readToken`) wrapped by a thin public function. The wrapper handles the redirect decision; the core does the work. This way React's `cache()` dedupes every call within a single render — call sites pass an options object (`{ redirectIfNotFound: true }`) but `cache()` keys on arg identity, so a naive `cache(getCurrentSession)` would miss on every call. With this split, `/app/admin` (root layout + auth layout + admin layout + admin page + `<IfRole>` + `<RequireRole>`) does **1** session fetch per render instead of 6.
 
 ## Server actions pattern
 
@@ -181,10 +186,9 @@ Always. Cross-feature imports use `@/features/<x>/...`, cross-module uses `@/lib
    - `services/<name>.service.ts` — typed `apiClient` wrappers
    - `types.ts` — DTO shapes
 2. **Add the route group** — pick the right one:
-   - Public: `app/<route>/page.tsx`
-   - Any user: `app/(authenticated)/<route>/page.tsx`
-   - ADMIN-only: `app/(admin)/<route>/page.tsx`
-   - CLIENT-only: `app/(client)/<route>/page.tsx`
+   - Public: `app/(public)/<route>/page.tsx` → `/<route>`
+   - Any user: `app/(authenticated)/app/<route>/page.tsx` → `/app/<route>`
+   - ADMIN-only: `app/(authenticated)/app/admin/<route>/page.tsx` → `/app/admin/<route>`
 3. **Wire the render guards** — use `<RequireRole>` / `<IfRole>` for sub-trees within an otherwise accessible page.
 4. **Use `useRole()`** in client components to conditionally render nav items or actions.
 5. **Verify** with `pnpm typecheck && pnpm --filter @app/web build`.

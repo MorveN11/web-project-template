@@ -2,6 +2,7 @@
 // in schema.prisma was removed in Prisma 7. The api imports this; the web
 // imports types only (see src/types.ts + src/index.ts re-exports).
 
+import { PrismaNeon } from '@prisma/adapter-neon';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { type Prisma, PrismaClient } from '@prisma/client';
 
@@ -19,7 +20,12 @@ function createClient(): AppPrisma {
   if (!connectionString) {
     throw new Error('DATABASE_URL is required to instantiate the Prisma client');
   }
-  const adapter = new PrismaPg({ connectionString });
+  // `@prisma/adapter-neon` only speaks HTTP via `@neondatabase/serverless`,
+  // which is valid against Neon's `-pooler` endpoint. Local docker postgres
+  // (or any non-Neon host) needs `PrismaPg`. Auto-detect by URL shape so
+  // the same code path serves both envs — no DATABASE_PROVIDER flag.
+  const isNeon = connectionString.includes('.neon.tech') || connectionString.includes('-pooler.');
+  const adapter = isNeon ? new PrismaNeon({ connectionString }) : new PrismaPg({ connectionString });
   return new PrismaClient({
     adapter,
     log: ['query', 'warn', 'error'],

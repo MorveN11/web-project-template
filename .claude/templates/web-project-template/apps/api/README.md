@@ -126,7 +126,16 @@ admin.openapi(protectedRoute, handler);
 
 `clerk.users.updateUserMetadata(...)` and friends are called only from `src/features/users/service.ts` and `src/dev/routes.ts`. The web app never holds `CLERK_SECRET_KEY`. The split exists because BAPI requires the service-role key.
 
-### 6. Webhook handling — verify, dispatch, ack
+### 6. Clerk-user memo (L1 in-process + L2 Redis)
+
+`src/auth/clerk.ts` does NOT call `clerkClient.users.getUser(sub)` directly — it goes through `getClerkUserCached(sub)` from `src/cache/clerk-user.ts`. Two-layer cache:
+
+- **L1** — `Map<sub, { user, expiresAt }>` per-process, FIFO eviction at 1000 entries, 30s TTL.
+- **L2** — Redis (key `clerk:user:v1:<sub>`, 30s TTL). Shared across api instances, so horizontal scale-out doesn't refetch on every cold replica.
+
+Redis is **optional**. If `getRedis()` returns `null` (unreachable), the wrapper falls back to L1 and logs a warn — no 5xx to the client. Call `invalidateClerkUserCached(sub)` after mutating `privateMetadata.role` so the next request re-reads from Clerk instead of waiting out the TTL.
+
+### 7. Webhook handling — verify, dispatch, ack
 
 `src/features/webhooks/routes.ts` is a **single** `handleClerkWebhook(request)` handler:
 

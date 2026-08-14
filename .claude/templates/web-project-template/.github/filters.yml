@@ -10,6 +10,7 @@
 api:
   - "apps/api/**"
   - "packages/shared-types/**"
+  - "packages/db/**"
 
 web:
   - "apps/web/**"

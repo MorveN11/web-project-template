@@ -14,9 +14,19 @@
 //
 // Idempotency: every handler is a `findUnique({ clerkId })` followed
 // by an `upsert` / `delete`. Replays are safe.
+//
+// Cache invalidation: every code path that mutates the local `User`
+// row also drops both cached entries — `user:session:v1:<clerkId>`
+// (the DTO cache) AND `clerk:user:v1:<sub>` (the BAPI memo). Without
+// the second one, `syncSelf` would read a stale `auth.role` from the
+// BAPI memo, see a mismatch with the freshly-written DB row, and
+// re-stamp Clerk + overwrite the DB back to the old role — a 30-60 s
+// rollback of any role flip that came in via this webhook.
 
 import type { UserRole } from '@app/shared-types';
 import type { UserJSON } from '@clerk/backend';
+import { invalidateClerkUserCached } from '@/cache/clerk-user';
+import { invalidateUserSessionCached } from '@/cache/user-session';
 import type { UserRepository } from '@/features/users/repository';
 import { logger } from '@/logger';
 
@@ -60,6 +70,11 @@ export class UserWebhookService {
       imageUrl,
       role: (role as UserRole) ?? existing.role,
     });
+    // The row just changed — drop both caches so the next read pulls
+    // fresh data instead of serving the stale email/avatar/role for
+    // up to 30s (DTO cache) or rolling back the DB on role mismatch
+    // (BAPI memo, see comment at top of file).
+    await Promise.all([invalidateUserSessionCached(user.id), invalidateClerkUserCached(user.id)]);
     logger.info({ clerkId: user.id, imageChanged: imageUrl !== existing.imageUrl }, 'webhook: user updated');
     return 'updated';
   }
@@ -69,18 +84,25 @@ export class UserWebhookService {
   // history queryable for audit.
   async handleDeleted(userId: string): Promise<WebhookOutcome> {
     const existing = await this.users.findByClerkId(userId);
-    if (!existing) return 'noop';
-
-    await this.users.upsert({
-      clerkId: userId,
-      email: existing.email,
-      firstName: existing.firstName,
-      lastName: existing.lastName,
-      imageUrl: existing.imageUrl,
-      role: existing.role as UserRole,
-      deletedAt: new Date(),
-    });
-    logger.info({ clerkId: userId }, 'webhook: user soft-deleted');
-    return 'deleted';
+    if (existing) {
+      await this.users.upsert({
+        clerkId: userId,
+        email: existing.email,
+        firstName: existing.firstName,
+        lastName: existing.lastName,
+        imageUrl: existing.imageUrl,
+        role: existing.role as UserRole,
+        deletedAt: new Date(),
+      });
+      // Soft-deleted: both caches are now stale. Drop them so the
+      // next authenticated render goes through syncSelf (which honours
+      // deletedAt) instead of returning a "live" DTO from cache, and
+      // so the JWT verify path doesn't reuse a stale BAPI user for
+      // up to 30s.
+      await Promise.all([invalidateUserSessionCached(userId), invalidateClerkUserCached(userId)]);
+      logger.info({ clerkId: userId }, 'webhook: user soft-deleted');
+      return 'deleted';
+    }
+    return 'noop';
   }
 }

@@ -5,6 +5,7 @@ packages:
 allowBuilds:
   '@clerk/shared': true
   '@prisma/engines': true
+  '@sentry/cli': set this to true or false
   bufferutil: true
   core-js: true
   esbuild: true
@@ -12,12 +13,19 @@ allowBuilds:
   sharp: true
   utf-8-validate: true
 
+minimumReleaseAgeExclude:
+  - '@scalar/client-side-rendering@0.3.7'
+  - '@scalar/hono-api-reference@0.11.14'
+  - '@scalar/types@0.18.0'
+  - hono@4.13.2
+
 # Native build allowlist. Add any package whose postinstall compiles native code.
 onlyBuiltDependencies:
   - "@clerk/shared"
-  - "@tailwindcss/oxide"
   - "@prisma/client"
   - "@prisma/engines"
+  - "@sentry/cli"
+  - "@tailwindcss/oxide"
   - "core-js"
   - "esbuild"
   - "prisma"
