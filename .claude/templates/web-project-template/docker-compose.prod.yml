@@ -101,12 +101,13 @@ services:
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY:-}
       CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES}
+      CLERK_WEBHOOK_SIGNING_SECRET: ${CLERK_WEBHOOK_SIGNING_SECRET}
       # CORS_ORIGIN must match the URL the browser hits — host-side.
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:${WEB_HOST_PORT:-3000}}
       # Boot-time seed flag. Hard-pinned on so every fresh deployment
       # creates admin@template.test on an empty DB. Flip to "false"
       # in environments that don't want the seed.
-      SEED_ENABLED: "true"
+      SEED_ENABLED: ${SEED_ENABLED:-true}
       # ---------- GlitchTip / Sentry (api runtime) ----------
       # Same hard-pin as DATABASE_URL: empty default = Sentry disabled.
       # SENTRY_ENVIRONMENT tracks whether this compose file is being
@@ -156,6 +157,11 @@ services:
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
         NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
         NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: ${NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:-0.01}
+        # Tells `next.config.ts` to add `localhost:*` to connect-src so
+        # the browser can reach the api at host port 4000. Default true
+        # for local `pnpm compose:prod`; release workflows inject `false`
+        # via Dokploy so deployed CSP stays strict.
+        IS_COMPOSE: ${IS_COMPOSE:-true}
         # No CLERK_SECRET_KEY here: build args land in the image history.
         # It's a runtime-only secret — see the `environment:` block below.
     image: ${WEB_IMAGE:-web-project-template-web:local}

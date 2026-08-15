@@ -5,7 +5,7 @@ import { Navbar } from '@/components/layout/navbar';
 import { ThemeProvider } from '@/components/theme-provider';
 import { UmamiScript } from '@/components/umami-script';
 import { RoleProvider } from '@/features/auth';
-import { getCurrentSession } from '@/features/auth/actions';
+import { BRAND } from '@/lib/contact';
 import { env } from '@/lib/env/client';
 import { cn } from '@/lib/utils';
 import { Providers } from './providers';
@@ -20,26 +20,35 @@ export const metadata: Metadata = {
   metadataBase: new URL(env.NEXT_PUBLIC_SITE_URL),
   // App name shown by Google OAuth consent screen and PWA install prompts.
   // Match the value entered in Google Cloud Console → OAuth consent screen.
-  applicationName: 'Web Project Template',
+  // Source of truth: `BRAND.shortName` in `lib/brand.ts`.
+  applicationName: BRAND.shortName,
   title: {
-    default: 'Web Project Template',
-    template: '%s · Web Project Template',
+    default: BRAND.shortName,
+    template: `%s · ${BRAND.shortName}`,
   },
-  description: 'Plantilla de tienda.',
+  description: BRAND.description,
+  // Favicon + apple touch icon → brand mark. Removes the implicit
+  // `/favicon.ico` 404 on every browser request. Forks override
+  // `BRAND.logo.mark` in `lib/contact.ts` to point at their own asset.
+  icons: {
+    icon: [{ url: BRAND.logo.mark, type: 'image/webp' }],
+    apple: BRAND.logo.mark,
+  },
   alternates: {
     canonical: '/',
   },
   openGraph: {
     type: 'website',
+    locale: 'es_BO',
     url: env.NEXT_PUBLIC_SITE_URL,
-    siteName: 'Web Project Template',
-    title: 'Web Project Template',
-    description: 'Plantilla de tienda.',
+    siteName: BRAND.shortName,
+    title: BRAND.shortName,
+    description: BRAND.description,
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Web Project Template',
-    description: 'Plantilla de tienda.',
+    title: BRAND.shortName,
+    description: BRAND.description,
   },
   robots: {
     index: true,
@@ -63,13 +72,7 @@ interface Props {
   children: ReactNode;
 }
 
-export default async function RootLayout({ children }: Props) {
-  // Read the session server-side once so the whole tree can call
-  // `useRole()` from client components without re-fetching. `null` for
-  // anonymous visitors — the provider is mounted either way so the
-  // hooks degrade to `null`/`false` instead of throwing on public pages.
-  const session = await getCurrentSession({ redirectIfNotFound: false });
-
+export default function RootLayout({ children }: Props) {
   return (
     <html
       lang="es"
@@ -93,7 +96,13 @@ export default async function RootLayout({ children }: Props) {
             matches the `@custom-variant dark` hook in globals.css. */}
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <Providers>
-            <RoleProvider value={session}>
+            {/* RoleProvider dentro del ThemeProvider/Providers: cualquier
+                client component del árbol (Navbar, Footer, MobileNav, etc.)
+                puede leer `useRole()` / `useIsAdmin()` / `useIsClient()`.
+                Provider is stateful and fetches the session client-side
+                via Clerk hooks — keeps the layout free of `headers()`
+                so public routes can prerender. */}
+            <RoleProvider>
               <Navbar />
               <main id="contenido" className="flex flex-1 flex-col">
                 {children}

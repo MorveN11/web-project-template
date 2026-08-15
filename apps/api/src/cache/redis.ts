@@ -105,7 +105,8 @@ export async function redisGet(key: string): Promise<string | null> {
 }
 
 /**
- * Set a key with TTL (seconds). `set` returns `null` on success
+ * Set a key with TTL (seconds). Returns `false` on Redis error so
+ * callers can log without throwing. `set` returns `null` on success
  * in ioredis (vs the OK string in node-redis); we coerce to boolean.
  */
 export async function redisSet(key: string, value: string, ttlSeconds: number): Promise<boolean> {

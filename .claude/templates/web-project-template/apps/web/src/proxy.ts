@@ -1,24 +1,22 @@
-// Clerk middleware. The single rule: anything under `/app` requires auth,
-// everything else is public. Adding a new private page = drop it under
-// `apps/web/src/app/(authenticated)/app/<feature>/` — no edit here.
+// Clerk middleware. Filename `proxy.ts` is the Next.js 16 alias for Edge middleware.
 //
-// `/auth` is public because Clerk's SignIn/SignUp routes live there;
-// `auth.protect()` would otherwise loop on `?redirect_url=…`.
-// `/api/webhooks` is public so Clerk can post webhooks without a token.
-// `/health` is the liveness probe (no auth required).
-//
-// Filename: `proxy.ts` — the Next.js 16 alias for the Edge middleware
-// file. `middleware.ts` is the conventional pre-16 name. We use the
-// new alias to stay aligned with what Next 16 documents going forward.
-// Next.js issue (vercel/next.js#93328) and rename back to `proxy.ts`
-// when fixed upstream.
+// Job: gate `/app/*` (admin) routes through Clerk auth. CSP / nonce used to
+// live here too, but both are now static in `next.config.ts` `headers()` —
+// CSP doesn't change per user, and the nonce pattern forced every layout /
+// page to call `headers()`, which made every route dynamic at build time.
+// Single source of truth for CSP: `next.config.ts`.
 
 import { clerkMiddleware } from '@clerk/nextjs/server';
 
 const PRIVATE_PREFIX = '/app';
 
 // Opt-in exceptions: public even though Clerk might otherwise redirect.
-const PUBLIC_PREFIXES = ['/auth', '/api/webhooks'];
+// `/auth` covers Clerk SignIn/SignUp (Spanish slugs). `/sign-in` +
+// `/sign-up` are kept as legacy fallbacks for any bookmarked Clerk
+// Account Portal URLs. `/api/webhooks` lets Clerk post webhooks
+// without a token.
+const PUBLIC_PREFIXES = ['/auth', '/sign-in', '/sign-up', '/api/webhooks'];
+// Exact-match public routes (root + health probe).
 const PUBLIC_EXACT = new Set(['/', '/health']);
 
 function isPublic(pathname: string): boolean {
@@ -28,8 +26,6 @@ function isPublic(pathname: string): boolean {
 
 export default clerkMiddleware(async (auth, request) => {
   const { pathname } = request.nextUrl;
-
-  // Default to public. The only thing that flips to private is the prefix.
   if (pathname.startsWith(PRIVATE_PREFIX) && !isPublic(pathname)) {
     await auth.protect();
   }

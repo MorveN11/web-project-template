@@ -27,6 +27,12 @@ RUN corepack enable pnpm
 # node_modules layout matches local dev (public-hoist-pattern).
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+# `patches/` holds `pnpm patch` outputs referenced from
+# `pnpm-workspace.yaml`'s `pnpm.patches` block. Required in the build
+# context so `pnpm install --frozen-lockfile` can verify + apply them
+# (current: `patches/next-themes@0.4.6.patch` — see web Dockerfile
+# for the same step + README Troubleshooting → "patches/ directory").
+COPY patches ./patches
 COPY packages/db/package.json ./packages/db/
 COPY packages/shared-types/package.json ./packages/shared-types/
 COPY apps/api/package.json ./apps/api/
@@ -80,6 +86,12 @@ WORKDIR /app
 ENV CI=true \
     NODE_ENV=production \
     PORT=8080
+# Release name baked into runtime Sentry events (matches the value
+# passed to `sentry-cli sourcemaps upload --release` in the build
+# stage, so uploaded maps resolve against incoming event frames).
+# Empty in local dev; CI/release workflows pass it as a build-arg.
+ARG SENTRY_RELEASE
+ENV SENTRY_RELEASE=$SENTRY_RELEASE
 
 # OpenSSL: the `prisma-client-js` generator uses the binary query engine,
 # which probes libssl/libcrypto at startup to pick its native binding.
@@ -98,7 +110,7 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
 # Only what the entrypoint's `prisma migrate deploy` actually reads:
 # schema + migrations. Copying the whole `prisma/` dir also dragged in
 # `seed.ts`, which is dead weight in the image — the seed that runs is the
-# esbuild bundle at `apps/api/dist/seed.js` (see prisma.config.js `seed`),
+# esbuild bundle at `apps/api/dist/seed.cjs` (see prisma.config.js `seed`),
 # and there's no tsx/ts-node here to execute the source anyway.
 COPY --from=runtime-deps --chown=api:nodejs /app/node_modules ./node_modules
 COPY --from=build /app/packages/db/prisma/schema.prisma ./packages/db/prisma/schema.prisma

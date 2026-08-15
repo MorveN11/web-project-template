@@ -47,12 +47,23 @@ export function initSentry(): void {
   // testing config copy. NODE_ENV is inlined at process start, so
   // this can't be flipped post-boot.
   if (env.NODE_ENV === 'development') {
-    logger.debug('sentry: NODE_ENV=development, Sentry disabled (dev never tracks)');
+    logger.info({ reason: 'dev-never-tracks', node_env: env.NODE_ENV }, 'sentry: disabled (NODE_ENV=development)');
     return;
   }
 
   if (!env.SENTRY_DSN) {
-    logger.debug('sentry: SENTRY_DSN empty, Sentry disabled');
+    logger.warn(
+      { reason: 'dsn-empty', node_env: env.NODE_ENV },
+      'sentry: disabled (SENTRY_DSN is empty — set it in Dokploy env for this service)',
+    );
+    return;
+  }
+
+  let dsnHost: string;
+  try {
+    dsnHost = new URL(env.SENTRY_DSN).host;
+  } catch {
+    logger.warn({ reason: 'dsn-malformed' }, 'sentry: SENTRY_DSN is not a valid URL — skipping init');
     return;
   }
 
@@ -63,7 +74,7 @@ export function initSentry(): void {
     // Bake the release name into events. CI/release workflows can
     // override this with a sha tag (set SENTRY_RELEASE in env) so the
     // GlitchTip UI can link errors to deploys.
-    release: process.env.SENTRY_RELEASE,
+    release: env.SENTRY_RELEASE,
   });
 
   Sentry.setTags({
@@ -74,9 +85,29 @@ export function initSentry(): void {
 
   initialised = true;
   logger.info(
-    { environment: env.SENTRY_ENVIRONMENT, tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE },
+    {
+      dsn_host: dsnHost,
+      environment: env.SENTRY_ENVIRONMENT,
+      tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE,
+      release: env.SENTRY_RELEASE,
+    },
     'sentry: initialised',
   );
+
+  if (env.SENTRY_RELEASE === '') {
+    // No release tag → uploaded sourcemaps won't match incoming events.
+    // Surface it so the next deploy can be diagnosed; not a hard error
+    // (boots still work, events still flow — just without frame mapping).
+    logger.warn(
+      { reason: 'release-empty' },
+      'sentry: SENTRY_RELEASE is empty — uploaded sourcemaps will not resolve incoming events',
+    );
+  }
+
+  // Boot heartbeat — proves the whole pipeline (init → upload → ingest)
+  // works end-to-end. Filter by message text in GlitchTip UI.
+  // Remove once you've confirmed events arrive.
+  Sentry.captureMessage('sentry-boot-probe', { level: 'info', tags: { probe: 'boot' } });
 }
 
 /**

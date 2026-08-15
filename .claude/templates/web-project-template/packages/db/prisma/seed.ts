@@ -1,30 +1,13 @@
-// Boot-time DB seed. Pure Prisma operations — no Clerk BAPI, no
-// external API calls. Runs at api container start after `prisma
-// migrate deploy`.
+// Boot-time DB seed. Runs at api container start after `prisma migrate deploy`.
+// Toggle with `SEED_ENABLED` (default `true`). Idempotent — early-returns
+// if any user already exists.
 //
-// Toggle: `SEED_ENABLED` env flag. Default `true` (every clone gets the
-// seed on first boot). Set to `false` to disable.
-//
-// Idempotency: the seed early-returns if any user already exists in the
-// database. Cheap `SELECT COUNT(*)` — fine until users > 10⁵.
-//
-// What this seeds:
-//   A single placeholder `User` row with a static clerkId. This proves
-//   the DB layer works at boot (insert succeeds, count guard behaves)
-//   and gives every fresh deployment a row to test /users/me against
-//   once a matching Clerk account is created.
-//
-// To make this user sign-in-able in Clerk:
-//   1. Sign in to the Clerk dashboard.
-//   2. Create a user with email `admin@template.test` and a Clerk
-//      `user ID` of exactly `seed_admin_template` (or change the
-//      `SEED_CLERK_ID` constant below to match the value Clerk
-//      generated). The first user.created webhook will populate
-//      `privateMetadata.role` from the local row's role column.
-//   3. Or — easier — delete this file and the `db seed` step in
-//      docker-entrypoint.sh if your fork doesn't need a seed user.
+// What it seeds: a single placeholder `User` row with static clerkId.
+// Lets every fresh deployment test `/users/me` against a known Clerk user.
+// Delete this file + the `db seed` step in docker-entrypoint.sh if you
+// don't need it.
 
-/** biome-ignore-all lint/suspicious/noConsole: 'Logs for debugging seed process' */
+/** biome-ignore-all lint/suspicious/noConsole: seed logs are debugging output by design */
 import { UserRole } from '@app/shared-types';
 import { database } from '../src/index.js';
 
@@ -39,6 +22,8 @@ async function main(): Promise<void> {
     console.log('[seed] SEED_ENABLED is not "true", skipping');
     return;
   }
+
+  console.log('[seed] SEED_ENABLED is "true", running seed...');
 
   // Idempotency: skip when the DB already has users.
   const existing = await database.user.count();

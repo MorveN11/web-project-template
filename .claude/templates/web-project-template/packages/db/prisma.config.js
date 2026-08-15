@@ -39,10 +39,10 @@ export default defineConfig({
   migrations: {
     // The api's `build` script bundles `packages/db/prisma/seed.ts`
     // (and its `@clerk/backend` + `@app/shared-types` deps) into a
-    // single ESM file at `apps/api/dist/seed.js`. Running it with
+    // single CJS file at `apps/api/dist/seed.cjs`. Running it with
     // plain `node` here means the slim api image needs neither `tsx`
     // nor those workspace deps in node_modules.
-    seed: 'node apps/api/dist/seed.js',
+    seed: 'node apps/api/dist/seed.cjs',
   },
   // `datasource.url` is only required by migrate/db push/studio. We
   // pass it when present and let prisma error on its own when missing

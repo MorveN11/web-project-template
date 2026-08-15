@@ -19,7 +19,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "migrate:reset": "prisma migrate reset",
     "studio": "prisma studio",
-    "seed": "prisma db seed",
+    "seed": "pnpm --filter @app/api build && node --env-file=../../apps/api/.env ../../apps/api/dist/seed.cjs",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "prisma format && biome check --write .",

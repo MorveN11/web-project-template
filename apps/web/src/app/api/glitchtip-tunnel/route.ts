@@ -7,14 +7,14 @@
 // hostname in the browser network tab.
 //
 // The handler is a thin proxy: forward the raw envelope body to
-// `${dsn.protocol}//${dsn.host}/api/${projectId}/envelope/` (Sentry's
-// envelope ingestion endpoint). Return 200 on any GlitchTip response
-// so the SDK doesn't retry.
+// `${dsn.protocol}//${dsn.host}/api/${projectId}/envelope/${dsn.search}`
+// (Sentry's envelope ingestion endpoint — note the DSN's search string
+// carries `sentry_key` + `sentry_version`, dropping it makes GlitchTip
+// 403 silently). Return 200 on any GlitchTip response so the SDK
+// doesn't retry.
 
 import { NextResponse } from 'next/server';
 import { env as clientEnv } from '@/lib/env/client';
-
-const SENTRY_ENVELOPE_PATH = (projectId: string) => `/api/${projectId}/envelope/`;
 
 export async function POST(request: Request): Promise<NextResponse> {
   // Server route — uses `clientEnv` for NEXT_PUBLIC_SENTRY_DSN since
@@ -34,13 +34,21 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const projectId = dsn.pathname.replace(/^\//, '');
-  const ingestUrl = `${dsn.protocol}//${dsn.host}${SENTRY_ENVELOPE_PATH(projectId)}`;
+  // ponytail: preserve dsn.search — Sentry SDK packs sentry_key + sentry_version
+  // there. Stripping it makes GlitchTip 4xx silently.
+  const ingestUrl = `${dsn.protocol}//${dsn.host}/api/${projectId}/envelope/${dsn.search}`;
+
+  // Inbound auth header (some Sentry SDK versions send it). Forward when present.
+  const sentryAuth = request.headers.get('x-sentry-auth');
 
   try {
     const body = await request.text();
     const upstream = await fetch(ingestUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      headers: {
+        'Content-Type': 'text/plain;charset=UTF-8',
+        ...(sentryAuth ? { 'X-Sentry-Auth': sentryAuth } : {}),
+      },
       body,
     });
     // Always 200 — the SDK interprets any non-2xx as a retryable

@@ -26,11 +26,14 @@ web-project-template/
 │   └── skills/                    ← project-local copies of Claude skills (Clerk family)
 ├── .containers/                   ← docker volumes (postgres + redis data) — gitignored
 ├── .gitattributes                 ← force LF across the monorepo (CI/Docker are Linux)
+├── patches/                   ← pnpm-patched deps (rewrites installed dist during install)
+│   ├── .gitkeep
+│   └── next-themes@0.4.6.patch ← reroutes inline <script> through useServerInsertedHTML for CSP nonce
 ├── .dockerignore                  ← keep build context small
 ├── apps/
 │   ├── api/
 │   │   ├── .env                   ← gitignored (mirrors .env.example)
-│   │   ├── .env.example           ← includes REDIS_URL; no SEED_ENABLED (seed is template-only)
+│   │   ├── .env.example           ← full runtime: NODE_ENV, PORT, DATABASE_URL, DIRECT_URL, REDIS_URL, REDIS_KEY_PREFIX, CORS_ORIGIN, CLERK_*, SEED_ENABLED, SENTRY_DSN/ENVIRONMENT/TRACES_SAMPLE_RATE/AUTH_TOKEN/RELEASE.
 │   │   ├── Dockerfile             ← 4 stages: deps → build + runtime-deps → runner (slim, no pnpm, no tsx)
 │   │   ├── docker-entrypoint.sh   ← migrate deploy → prisma db seed → exec api. Forks delete the seed step before prod.
 │   │   ├── package.runtime.json   ← flat manifest for the slim runner (no workspace, no symlinks; pinned exact). Includes both pg and neon adapters + @neondatabase/serverless for adapter auto-detect.
@@ -70,7 +73,6 @@ web-project-template/
 │       ├── package.json
 │       ├── postcss.config.mjs
 │       ├── proxy.ts               ← clerkMiddleware: PRIVATE_PREFIX='/app' gates auth. Everything else public (incl. /health, /auth/*, /, /api/webhooks).
-│       ├── sentry.client.config.ts  ← @sentry/nextjs browser init (no-op when NEXT_PUBLIC_SENTRY_DSN empty)
 │       ├── sentry.edge.config.ts    ← @sentry/nextjs edge-runtime init (middleware, RSC streaming)
 │       ├── sentry.server.config.ts  ← @sentry/nextjs server-runtime init (route handlers, server actions)
 │       ├── tsconfig.json
@@ -98,13 +100,16 @@ web-project-template/
 │           │   ├── not-found.tsx  ← root 404
 │           │   ├── page.tsx       ← actual / is inside (public)/page.tsx; this top-level redirect wouldn't normally exist
 │           │   ├── providers.tsx  ← 'use client' ClerkProvider (shadcn theme + esES localization)
-│           │   └── robots.ts      ← MetadataRoute.Robots — disallows /app/ and /auth/ in prod
+│           │   ├── robots.ts      ← MetadataRoute.Robots — disallows /app/ and /auth/ in prod
+│           │   ├── manifest.ts    ← MetadataRoute.Manifest — PWA install prompt; id/short_name from BRAND; icons from apps/web/public/
+│           │   └── sitemap.ts     ← MetadataRoute.Sitemap — uses env.NEXT_PUBLIC_SITE_URL as the base url
 │           ├── components/
 │           │   ├── layout/{navbar.tsx, theme-toggle.tsx}
 │           │   ├── theme-provider.tsx ← next-themes wrapper (class-based dark mode)
 │           │   ├── ui/             ← shadcn components (excluded from biome formatting)
-│           │   └── umami-script.tsx ← <Script src={NEXT_PUBLIC_UMAMI_SCRIPT_URL} data-website-id={…} />, rendered in root layout only when NODE_ENV === 'production'
-│           ├── instrumentation.ts  ← Next.js 15 hook that initialises Sentry server/edge SDKs on boot
+│           │   └── umami-script.tsx ← <Script src={NEXT_PUBLIC_UMAMI_SCRIPT_URL} data-website-id={…} />; returns null when either var is empty
+│           ├── instrumentation.ts             ← Next 16 server hook — auto-loads apps/web/sentry.{server,edge}.config.ts based on NEXT_RUNTIME
+│           ├── instrumentation-client.ts     ← Next 15+ browser hook — modern replacement for the old apps/web/sentry.client.config.ts
 │           ├── features/
 │           │   └── auth/
 │           │       ├── actions.ts          ← getCurrentSession (zero-arg readSession memo + thin dispatch) + getCurrentToken. Rung-1 cache fix: cache() keys on arg identity, so the memo MUST be zero-arg.
@@ -117,7 +122,12 @@ web-project-template/
 │           │       └── index.ts
 │           └── lib/
 │               ├── api-client.ts           ← ApiClient + RequestBuilder (single chokepoint, dev logs)
-│               ├── env/{client,server}.ts  ← t3-oss/env-nextjs schemas
+│               ├── brand.ts               ← BRAND (shortName, name, description, logo paths) — single source of truth
+│               ├── contact.ts             ← ADDRESS, EMAIL, PHONE, CHANNELS, SOCIAL — brand + contact metadata
+│               ├── structured-data/
+│               │   ├── index.ts           ← re-exports
+│               │   └── home.tsx           ← <HomeStructuredData /> — WebSite + LocalBusiness JSON-LD @graph
+│               ├── env/{client,server}.ts  ← t3-oss/env-nextjs schemas. client.ts defines NEXT_PUBLIC_SITE_URL (default https://example.com — placeholder, must override per env)
 │               ├── logger.ts               ← dev-only noop
 │               ├── safe-action.ts          ← server-action result wrapper
 │               ├── next-control-errors.ts  ← isNextControlError helper
@@ -127,11 +137,12 @@ web-project-template/
 │   │   ├── package.json           ← exports: import → dist/, dev → src/. dev: tsc watch. runtime: Prisma 7, @prisma/adapter-pg (docker) or @prisma/adapter-neon (Neon, auto-detect), pg, @neondatabase/serverless.
 │   │   ├── tsconfig.json
 │   │   ├── tsconfig.build.json    ← tsc → dist/ (rootDir omitted, includes src/ + generated/)
-│   │   ├── prisma.config.js       ← Prisma 7: plain JS so slim runner can invoke via node (no tsx). seed: 'node apps/api/dist/seed.js'
+│   │   ├── prisma.config.js       ← Prisma 7: plain JS so slim runner can invoke via node (no tsx). seed: 'node apps/api/dist/seed.cjs' (CJS bundle emitted by the api `build` step). DIRECT_URL ?? DATABASE_URL for migrations (Neon direct endpoint).
 │   │   ├── prisma/
-│   │   │   ├── schema.prisma      ← provider=prisma-client-js. Single model: User. Replace at fork time.
+│   │   │   ├── schema.prisma      ← provider=prisma-client-js. Single model: User with @db.VarChar(N) length constraints (clerkId 64, email 255, firstName/lastName 100, imageUrl 255). Replace at fork time.
 │   │   │   ├── migrations/
-│   │   │   │   └── <timestamp>_init/migration.sql
+│   │   │   │   ├── <timestamp>_init/migration.sql
+│   │   │   │   └── <timestamp>_add_max_leght_user_data/migration.sql  ← ALTER COLUMN SET DATA TYPE VARCHAR(N) on User columns
 │   │   │   └── seed.ts           ← TEMPLATE-ONLY: creates admin@template.test on empty DB; idempotent (skips with log if any users exist); try/catch with Clerk rollback on mid-flow failure. Forks DELETE this file.
 │   │   └── src/
 │   │       ├── client.ts          ← PrismaClient singleton (driver adapter)
@@ -193,12 +204,12 @@ Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. O
 
 ## Slim runtime model (api)
 
-- `apps/api/Dockerfile` builds the api as a 1.1MB esbuild bundle. The api `build` script also bundles `packages/db/prisma/seed.ts` into `apps/api/dist/seed.js` so the seed can run as `node apps/api/dist/seed.js` (no `tsx` at runtime). Workspace packages `@app/db` and `@app/shared-types` are pre-transpiled to `dist/` in the build stage; their `exports` field maps `import` to `dist/` and `dev` to `src/` (so `pnpm dev` with `tsx --conditions=dev` keeps using source).
+- `apps/api/Dockerfile` builds the api as a 1.1MB esbuild bundle. The api `build` script also bundles `packages/db/prisma/seed.ts` into `apps/api/dist/seed.cjs` (esbuild `--format=cjs`) so the seed can run as `node apps/api/dist/seed.cjs` (no `tsx` at runtime, and the CJS format inlines `@clerk/backend` + workspace deps without needing TS). Workspace packages `@app/db` and `@app/shared-types` are pre-transpiled to `dist/` in the build stage; their `exports` field maps `import` to `dist/` and `dev` to `src/` (so `pnpm dev` with `tsx --conditions=dev` keeps using source).
 - Runner has **no pnpm, no corepack, no pino-pretty, no tsx**. Install is `npm install --omit=dev` from `apps/api/package.runtime.json` (7 deps, pinned exact — keep them in sync with `packages/db` on every Prisma bump). It runs in its own `runtime-deps` stage so its cache key is that manifest alone, not the app source. The seed runs as a bundled JS — workspace deps are inlined by esbuild at build time, so node_modules only needs the runtime npm packages.
 - The runner never runs `chown -R /app`: ownership is set inline via `COPY --from=runtime-deps --chown=api:nodejs`, which is free. `node_modules` must be writable by `api` because the prisma CLI does a writability preflight on `@prisma/engines` before every command.
 - Only `schema.prisma` + `migrations/` are copied into the image — not the whole `prisma/` dir, which would drag in the unused `seed.ts` source.
 - Migration runs via `node node_modules/prisma/build/index.js migrate deploy --schema=… --config=prisma.config.js`.
-- Seed runs right after migrate: `node node_modules/prisma/build/index.js db seed --schema=… --config=…` → which internally invokes `node apps/api/dist/seed.js`.
+- Seed runs right after migrate: `node node_modules/prisma/build/index.js db seed --schema=… --config=…` → which internally invokes `node apps/api/dist/seed.cjs`.
 - Image size: ~780 MB. Cold boot to `api listening`: ~2 s.
 
 ## Slim runtime model (web)
@@ -221,7 +232,7 @@ Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. O
 
 ## Boot-time seed
 
-- `packages/db/prisma/seed.ts` is bundled into `apps/api/dist/seed.js` by the api `build` step (esbuild). The bundled JS runs as `node apps/api/dist/seed.js` from `docker-entrypoint.sh`'s `prisma db seed` step. Gated by the `SEED_ENABLED` env flag (default `true`, hard-pinned in compose).
+- `packages/db/prisma/seed.ts` is bundled into `apps/api/dist/seed.cjs` by the api `build` step (esbuild `--format=cjs`). The bundled CJS runs as `node apps/api/dist/seed.cjs` from `docker-entrypoint.sh`'s `prisma db seed` step. Gated by the `SEED_ENABLED` env flag (default `true`, hard-pinned in compose).
 - **Pure Prisma** — no Clerk BAPI, no external calls. The seed inserts one placeholder `User` row (ADMIN role, sentinel `clerkId`) on an empty DB to validate the write path. Skips with log when any users exist.
 - Forks that don't want the seed set `SEED_ENABLED=false` per environment (compose, env). They do NOT delete the file. Documented in the file's header.
 - To make the seeded user sign-in-able, the matching Clerk account must be created manually in the Clerk dashboard with the same `clerkId` sentinel. The first `user.created` webhook will populate `privateMetadata.role` from the local row's `role` column.
@@ -235,7 +246,13 @@ Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. O
 | New auth-gated page | `apps/web/src/app/(authenticated)/app/<feature>/page.tsx` (or `.../admin/<feature>/page.tsx` if admin-only). URL becomes `/app/<feature>` automatically; no `proxy.ts` edit. |
 | New public page | `apps/web/src/app/(public)/<feature>/page.tsx` → `/<feature>`. No `proxy.ts` edit. |
 | New shadcn component | `pnpm dlx shadcn@latest add <name>` (writes to `apps/web/src/components/ui/`; root `biome.json` ignores those files via `!**/apps/**/src/components/ui`) |
-| New env var | api: `apps/api/.env.example` + `apps/api/src/env.ts`. web: `apps/web/.env.example` + `apps/web/src/lib/env/{client,server}.ts`. root: `.env.example` only if consumed by docker compose. **Never add `NEXT_PUBLIC_API_URL`** — compose hardcodes the in-container URL and `client.ts` provides the dev default. |
+| New env var | api: `apps/api/.env.example` + `apps/api/src/env.ts`. web: `apps/web/.env.example` + `apps/web/src/lib/env/{client,server}.ts`. root: `.env.example` only if consumed by docker compose. **Never add `NEXT_PUBLIC_API_URL`** — compose hardcodes the in-container URL and `client.ts` provides the dev default. **Never add `NEXT_PUBLIC_SITE_URL`** outside `.env.example` — the schema default `https://example.com` is a placeholder; per-env values come from GitHub Secrets `NEXT_PUBLIC_SITE_URL_{PROD,TEST}` via Docker build args. |
+| New build-time identity var (NEXT_PUBLIC_*) | `apps/web/.env.example` + `apps/web/src/lib/env/client.ts` + update both `release.{prod,test}.yml` `build-args:` to pass from a GitHub Secret. Also update `.github/SECRETS.md` checklist. |
+| New brand / contact field | `apps/web/src/lib/brand.ts` (`BRAND`) or `apps/web/src/lib/contact.ts` (`ADDRESS`, `EMAIL`, `PHONE`, `CHANNELS`, `SOCIAL`). One source of truth — propagates to layout metadata, PWA manifest, JSON-LD automatically. |
+| New JSON-LD graph node | `apps/web/src/lib/structured-data/home.tsx` — add to `getHomeGraphLd()` `@graph` array. Reference `BRAND` / `ADDRESS` rather than re-typing literals. |
+| New Clerk OAuth / social connection | Configure in Clerk dashboard; no code change needed. Update `apps/web/src/lib/contact.ts` `SOCIAL` URLs. If a different `signInUrl` is desired, update `NEXT_PUBLIC_CLERK_SIGN_IN_URL` defaults across `apps/web/.env.example` + `apps/web/src/lib/env/client.ts` + `.env.example` (root) + `apps/web/src/proxy.ts` `PUBLIC_PREFIXES`. |
+| New GlitchTip / Sentry env | api: `apps/api/.env.example` + `apps/api/src/env.ts`. web: `apps/web/.env.example` + `apps/web/src/lib/env/{client,server}.ts`. If the new env feeds the api source-map upload step, also add the matching GitHub Secret + `--build-arg` to `release.{prod,test}.yml`. |
+| Add a patched dependency | Create the patch via `pnpm patch <pkg>@<version>` (modifies the installed dist in a temp dir). Save the diff to `patches/<pkg>@<version>.patch` (pnpm auto-generates the filename). Register it in `pnpm-workspace.yaml` under `patchedDependencies:`. Verify the api `Dockerfile` build stage copies `./patches` before `pnpm install --frozen-lockfile` so the runtime image also gets the patch. Run `pnpm install` once locally to confirm the patched dist loads. |
 | New workflow | `.github/workflows/<name>.yml`; mirror `ci.yml`'s single-job sequential style, no postgres service |
 | New GitHub secret | Add to repo Settings → Secrets, then document in `.github/SECRETS.md` |
 | New log line (dev only on web) | `import { logger } from '@/lib/logger'` |
@@ -243,7 +260,7 @@ Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. O
 | New cache layer | `apps/api/src/cache/<name>.ts` — follow the `clerk-user.ts` pattern: lazy singleton client, degrade silently on Redis error, namespace keys by `env.NODE_ENV`, expose `get*Cached()` + `invalidate*Cached()` helpers. |
 | Mutate a User row | After the DB write, call `Promise.all([invalidateUserSessionCached(clerkId), invalidateClerkUserCached(clerkId)])`. Missing the second invalidator creates a 30 s role-flip rollback window. |
 | Disable the seed in one env | Set `SEED_ENABLED=false` in that environment's compose or env file. The seed file stays in the repo. |
-| Extend the seed | Edit `packages/db/prisma/seed.ts`. The api `build` step re-bundles it to `apps/api/dist/seed.js` automatically. Don't add deps to `package.runtime.json` — the bundle inlines them at build time. |
+| Extend the seed | Edit `packages/db/prisma/seed.ts`. The api `build` step re-bundles it to `apps/api/dist/seed.cjs` automatically. Don't add deps to `package.runtime.json` — the bundle inlines them at build time. |
 
 ## What you do NOT modify
 
@@ -258,6 +275,8 @@ Sub-packages must NOT carry their own biome/typescript/tsx/vitest/@types/node. O
 - The `REDIS_URL` hard-pin in `docker-compose.prod.yml` (`redis://redis:6379`). Letting a host-side value leak in makes the api look for Redis on `localhost` (wrong, container localhost ≠ host localhost).
 - The `package.runtime.json` flat manifest for the api runner. Workspace deps are not honored at runtime — they must be listed here too if their runtime code is invoked. Versions are pinned exact so `npm install` is deterministic.
 - The `/app` URL prefix in `proxy.ts` — it's the contract between the convention and the auth gate. Removing it means every new private page requires a `proxy.ts` edit (back to the original foot-gun).
+- The `apps/api/Dockerfile` `SENTRY_RELEASE` ARG/ENV passthrough (runner stage, ~line 87). Removing it severs the link between runtime Sentry events and the sourcemaps uploaded by `release.{prod,test}.yml`'s `Upload api source maps to GlitchTip` step.
+- The `getsentry/action-release@v3` GitHub Action call in `release.{prod,test}.yml`. The api bundle is plain esbuild output with `--sourcemap`; without this step, api stack frames in GlitchTip remain minified. The action is the official Sentry-published equivalent of `npx @sentry/cli sourcemaps upload` — same env vars (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_URL`, `SENTRY_PROJECT`), same `release:` tag, but shipped as a first-class action with auto-discovery + the `ignore_missing: 'true'` guard for the first release.
 - The zero-arg memo split in `actions.ts` — the split is required for `cache()` to hit. Re-adding the redirect into the cached function defeats the memo.
 - The `package.json` `seed` script (`prisma db seed`) — forks delete the seed file, not the script. Renaming the script breaks `pnpm db:seed` from the host.
 

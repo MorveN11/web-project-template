@@ -10,7 +10,7 @@ const csv = (v: string) =>
     .filter(Boolean);
 
 const EnvSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  NODE_ENV: z.enum(['development', 'test', 'testing', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
@@ -45,7 +45,17 @@ const EnvSchema = z.object({
 
   CORS_ORIGIN: z.string().default('http://localhost:3000').transform(csv),
 
-  CLERK_SECRET_KEY: z.string().min(1),
+  // Reject placeholder / seed values — otherwise `verifyToken` happily
+  // accepts `sk_test_seed_placeholder` and every request returns 401
+  // with no obvious boot-time error. Copy the real value from
+  // `apps/web/.env` — both apps must point at the same Clerk instance.
+  CLERK_SECRET_KEY: z
+    .string()
+    .min(1)
+    .refine((v) => !/seed_placeholder|replace_me|changeme/i.test(v), {
+      message:
+        'CLERK_SECRET_KEY is still a placeholder. Copy the real value from `apps/web/.env` — both apps must point at the same Clerk instance.',
+    }),
   CLERK_PUBLISHABLE_KEY: z.string().min(1).default(''),
   CLERK_AUTHORIZED_PARTIES: z.string().default('http://localhost:3000').transform(csv),
 
@@ -89,6 +99,11 @@ const EnvSchema = z.object({
   // Build-time only — used by source map uploaders in CI/release.
   // Never runtime; would leak via image history.
   SENTRY_AUTH_TOKEN: z.string().default(''),
+  // Release name baked into runtime Sentry events. Same value that
+  // source-map uploads reference (--release in the build script),
+  // so uploaded maps resolve against incoming event stack frames.
+  // Empty string is fine — events will simply lack a release tag.
+  SENTRY_RELEASE: z.string().default(''),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

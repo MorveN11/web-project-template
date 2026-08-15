@@ -1,4 +1,5 @@
 // Sentry / GlitchTip edge-runtime initialization.
+/** biome-ignore-all lint/suspicious/noConsole: 'Sentry Logs' */
 //
 // Loaded by `instrumentation.ts` when `NEXT_RUNTIME === 'edge'`.
 // Next 16's `proxy.ts` (Clerk middleware) runs in this runtime — this
@@ -18,10 +19,26 @@ import { env as clientEnv } from '@/lib/env/client';
 // envs inject the DSN via Dokploy build args; dev never sets it, so
 // the SDK stays uninitialised on the edge runtime.
 if (clientEnv.NEXT_PUBLIC_SENTRY_DSN) {
-  Sentry.init({
-    dsn: clientEnv.NEXT_PUBLIC_SENTRY_DSN,
-    environment: clientEnv.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
-    tracesSampleRate: clientEnv.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,
-    release: clientEnv.NEXT_PUBLIC_SENTRY_RELEASE,
-  });
+  try {
+    Sentry.init({
+      dsn: clientEnv.NEXT_PUBLIC_SENTRY_DSN,
+      environment: clientEnv.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
+      tracesSampleRate: clientEnv.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,
+      release: clientEnv.NEXT_PUBLIC_SENTRY_RELEASE,
+    });
+    const dsnHost = new URL(clientEnv.NEXT_PUBLIC_SENTRY_DSN).host;
+    console.info('[sentry] initialised (edge)', {
+      dsn_host: dsnHost,
+      environment: clientEnv.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
+      release: clientEnv.NEXT_PUBLIC_SENTRY_RELEASE,
+    });
+    Sentry.captureMessage('sentry-boot-probe (edge)', {
+      level: 'info',
+      tags: { probe: 'boot' },
+    });
+  } catch (err) {
+    console.error('[sentry] init failed (edge)', err);
+  }
+} else {
+  console.info('[sentry] disabled (edge) — NEXT_PUBLIC_SENTRY_DSN empty');
 }

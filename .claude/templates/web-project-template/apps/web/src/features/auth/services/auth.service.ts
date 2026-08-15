@@ -39,10 +39,11 @@ export class AuthService extends ApiClient {
       return await this.get<UserSession>('/users/me').withAuth(token);
     } catch (cause) {
       if (isNextControlError(cause)) throw cause;
-      if (cause instanceof ApiError) {
+      // 401 from `/users/me` means the Clerk token is expired or invalid.
+      // Treat as "no session" — caller-side `getCurrentSession` returns
+      // null and the page renders signed-out. Don't log: expected noise.
+      if (cause instanceof ApiError && cause.status !== 401) {
         logger.warn({ status: cause.status, cause }, 'authService: getMyUserSession failed');
-      } else {
-        logger.warn({ cause }, 'authService: getMyUserSession failed');
       }
       return null;
     }

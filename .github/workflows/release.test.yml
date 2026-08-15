@@ -71,6 +71,10 @@ jobs:
   build-and-push:
     needs: [release, changes]
     runs-on: ubuntu-latest
+    env:
+      # Job-level so the source-maps step (after the docker push) can
+      # resolve IMAGE_NAMESPACE — step-level env doesn't propagate.
+      IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
     strategy:
       fail-fast: false
       matrix:
@@ -80,11 +84,18 @@ jobs:
             context: .
             dockerfile: apps/api/Dockerfile
             webhook_secret: DOKPLOY_DEPLOY_WEBHOOK_API_TEST
+            # GlitchTip project SLUG — passed to `getsentry/action-release@v3`
+            # as `SENTRY_PROJECT`. GlitchTip's `/api/0/projects/{org}/{slug}/`
+            # only resolves slugs, not numeric ids. Read from a per-env GitHub
+            # variable (set in repo Settings → Secrets and variables →
+            # Variables) so the slug can change without re-touching YAML.
+            sentry_project: ${{ vars.SENTRY_PROJECT_API_TEST }}
           - id: web
             name: web
             context: .
             dockerfile: apps/web/Dockerfile
             webhook_secret: DOKPLOY_DEPLOY_WEBHOOK_WEB_TEST
+            sentry_project: ${{ vars.SENTRY_PROJECT_WEB_TEST }}
     steps:
       - name: Should this service build?
         id: should_run
@@ -119,11 +130,6 @@ jobs:
 
       - name: Build & push (test)
         if: steps.should_run.outputs.should_run == 'true'
-        env:
-          # IMAGE_NAMESPACE lets forks publish under a different namespace
-          # than their Docker Hub username (e.g. org-owned repos). Falls back
-          # to DOCKERHUB_USERNAME when the variable is unset.
-          IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.service.context }}
@@ -140,7 +146,20 @@ jobs:
             # the test bundle points at prod (default fallback).
             NEXT_PUBLIC_SITE_URL=${{ secrets.NEXT_PUBLIC_SITE_URL_TEST }}
             # Build-time only (source map upload). Empty = no source maps.
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN_TEST }}
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            # Non-sensitive identifiers — read from `vars.*` (set in
+            # repo settings) instead of hardcoding the org in YAML.
+            # Project ID + URL are parsed from the DSN by the consumer
+            # (next.config.ts for web, the upload step for api) — the
+            # DSN format `https://<key>@<host>/<project_id>` carries
+            # both. Release name shared by api + web (same matrix
+            # builds against the same `release` job output).
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            # GlitchTip base URL — forwarded to `withSentryConfig` as
+            # `sentryUrl` (web) and read by the api upload step's
+            # `SENTRY_URL` env. Same value as `vars.SENTRY_URL`.
+            NEXT_PUBLIC_SENTRY_URL=${{ vars.SENTRY_URL }}
+            SENTRY_RELEASE=${{ needs.release.outputs.new_tag }}-build-${{ matrix.service.id }}
             # GlitchTip / Sentry — inlined into the JS bundle at build time.
             # Test deploys track errors + metrics just like prod, so
             # testing-env bugs surface in GlitchTip before they ship.
@@ -149,6 +168,15 @@ jobs:
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN_TEST }}
             NEXT_PUBLIC_SENTRY_ENVIRONMENT=testing
             NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0.01
+            # GlitchTip project SLUG — `withSentryConfig` forwards it to
+            # `@sentry/cli` as `--project`. Read from the same per-env var
+            # the api upload step uses (see matrix above).
+            NEXT_PUBLIC_SENTRY_PROJECT=${{ vars.SENTRY_PROJECT_WEB_TEST }}
+            # Frontend logger threshold — inlined into the JS bundle at
+            # build time by `env/client.ts`. `info` for testing: keeps
+            # every `info`/`warn`/`error` from api-client + logger,
+            # useful to debug real deploys without the noise of `debug`.
+            NEXT_PUBLIC_LOG_LEVEL=info
             # NO Umami build args here — Umami tracks REAL traffic data
             # (page views, sessions, conversions). Test deploys deliberately
             # omit it; the <UmamiScript /> NODE_ENV gate + empty-value
@@ -158,6 +186,39 @@ jobs:
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:${{ needs.release.outputs.new_tag }}-build
           cache-from: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:buildcache-test
           cache-to: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:buildcache-test,mode=max
+
+      - name: Extract api dist from image
+        if: matrix.service.id == 'api' && steps.should_run.outputs.should_run == 'true'
+        shell: bash
+        env:
+          IMAGE: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:${{ needs.release.outputs.new_tag }}-build
+        run: |
+          # The api image's entrypoint runs prisma migrations + boots
+          # the node service. Override to /bin/true so `docker create`
+          # exits immediately without starting the api — we only need
+          # the dist/ directory that esbuild emitted during the build.
+          CID=$(docker create --entrypoint /bin/true "$IMAGE")
+          docker cp "$CID":/app/apps/api/dist ./dist
+          docker rm "$CID" >/dev/null
+
+      - name: Upload api source maps to GlitchTip
+        if: matrix.service.id == 'api' && steps.should_run.outputs.should_run == 'true'
+        uses: getsentry/action-release@v3
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          # GlitchTip base URL. Not a secret — the hostname is public.
+          # `SENTRY_PROJECT` per matrix entry. Action uses these to
+          # resolve all CLI calls (`https://<url>/api/0/...`).
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
+          SENTRY_PROJECT: ${{ matrix.service.sentry_project }}
+        with:
+          release: ${{ needs.release.outputs.new_tag }}-build-${{ matrix.service.id }}
+          sourcemaps: ./dist
+          set_commits: auto
+          # First-ever release has no previous tag; without this the
+          # `set_commits auto` step would fail the whole upload.
+          ignore_missing: 'true'
 
       - name: Trigger Dokploy (test)
         if: steps.should_run.outputs.should_run == 'true'

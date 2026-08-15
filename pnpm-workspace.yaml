@@ -5,7 +5,7 @@ packages:
 allowBuilds:
   '@clerk/shared': true
   '@prisma/engines': true
-  '@sentry/cli': set this to true or false
+  '@sentry/cli': true
   bufferutil: true
   core-js: true
   esbuild: true
@@ -24,10 +24,25 @@ onlyBuiltDependencies:
   - "@clerk/shared"
   - "@prisma/client"
   - "@prisma/engines"
-  - "@sentry/cli"
-  - "@tailwindcss/oxide"
   - "core-js"
   - "esbuild"
   - "prisma"
   - "sharp"
+  - "@tailwindcss/oxide"
   - "unrs-resolver"
+
+# Patches applied via `pnpm patch`. Each entry maps a dependency at a
+# pinned version to its patch file under `./patches/`. The patch
+# mechanism rewrites the package's installed dist during install, so
+# both local dev (`pnpm install`) and the Docker build (which copies
+# `./patches` into the build stage before `pnpm install --frozen-lockfile`)
+# see the same fixed dist.
+#
+# Current:
+#   - `next-themes@0.4.6`: reroutes the inline `<script>` that prevents
+#     the dark/light theme flash through Next.js's `useServerInsertedHTML`
+#     so the script ships with the SSR nonce — without the patch the
+#     inline `<script>` ignores the nonce and breaks CSP `strict-dynamic`
+#     in production. See `patches/next-themes@0.4.6.patch` for the diff.
+patchedDependencies:
+  next-themes@0.4.6: patches/next-themes@0.4.6.patch

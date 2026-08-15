@@ -39,6 +39,6 @@
     "db:migrate:deploy": "pnpm --filter @app/db migrate:deploy",
     "db:migrate:reset": "pnpm --filter @app/db migrate:reset",
     "db:studio": "pnpm --filter @app/db studio",
-    "db:seed": "pnpm --filter @app/db seed"
+    "db:seed": "pnpm --filter @app/api build && node --env-file=apps/api/.env apps/api/dist/seed.cjs"
   }
 }

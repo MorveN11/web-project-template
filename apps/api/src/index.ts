@@ -79,16 +79,26 @@ app.use('*', async (c, next) => {
 // CORS so the response headers are present even on preflight rejections.
 // HSTS only fires when the request came over HTTPS — Hono checks the
 // protocol; in dev (http) the header is skipped.
+//
+// CSP is dev/permissive in non-production to accommodate the Scalar
+// API docs UI, which pulls its JS bundle from `cdn.jsdelivr.net`, fonts
+// from `fonts.scalar.com`, and connects back to `api.scalar.com`. In
+// production none of these endpoints are reachable (the `/docs` and
+// `/openapi.json` routes are gated on NODE_ENV above) so the
+// allowlists collapse to `'self'` only.
+const isProd = env.NODE_ENV === 'production';
 app.use(
   '*',
   secureHeaders({
-    strictTransportSecurity: env.NODE_ENV === 'production' ? 'max-age=63072000; includeSubDomains; preload' : false,
+    strictTransportSecurity: isProd ? 'max-age=63072000; includeSubDomains; preload' : false,
     contentSecurityPolicy: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:', 'blob:'],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      connectSrc: ["'self'"],
+      scriptSrc: isProd ? ["'self'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net'],
+      scriptSrcElem: isProd ? ["'self'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net'],
+      imgSrc: isProd ? ["'self'", 'data:', 'blob:'] : ["'self'", 'data:', 'blob:', 'https://cdn.jsdelivr.net'],
+      styleSrc: isProd ? ["'self'", "'unsafe-inline'"] : ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      fontSrc: isProd ? ["'self'"] : ["'self'", 'data:', 'https://fonts.scalar.com'],
+      connectSrc: isProd ? ["'self'"] : ["'self'", 'https://cdn.jsdelivr.net', 'https://api.scalar.com'],
       frameAncestors: ["'none'"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
