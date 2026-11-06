@@ -40,6 +40,10 @@ These follow the per-env split precedent set by `NEXT_PUBLIC_CLERK_PUBLISHABLE_K
 
 **Google Search Console verification:** register your domain as a **Domain property** (not URL prefix) in [Search Console](https://search.google.com/search-console) → Settings → Ownership verification → DNS TXT. Your DNS provider hosts the TXT record — one record covers the apex + every subdomain. The verification lives in DNS, so it survives hosting changes, redeploys, and image rebuilds.
 
+## Enabling the release workflows (opt-in)
+
+`release.prod.yml` / `release.test.yml` only run when the repo **variable** `ENABLE_RELEASES` is `true` (Settings → Secrets and variables → Actions → Variables). Unset, they skip and show green, so a fresh fork or public clone passes CI without any secret. `ci.yml`, `check-branch.yml` and `check-pull-request.yml` need **no secrets at all**.
+
 ## Required for `release.prod.yml` and `release.test.yml`
 
 Every row below is referenced as `${{ secrets.<NAME> }}` in the workflow. Adding a row here without a matching GitHub Secret breaks the build.

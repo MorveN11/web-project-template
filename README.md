@@ -26,7 +26,7 @@ stack decisions every time.
 1. Click **Use this template** on GitHub (or `git clone` and drop the history).
 2. Follow the [first 5 minutes](#tldr--first-5-minutes) below to run it locally.
 3. Walk the [forking checklist](#forks-assets--identity-checklist) to rename the project and replace `User` with your domain.
-4. Set up CI/CD secrets from [`.github/SECRETS.md`](.github/SECRETS.md) when you're ready to deploy.
+4. CI needs no secrets. To enable deploys, set the repo variable `ENABLE_RELEASES=true` and add the secrets from [`.github/SECRETS.md`](.github/SECRETS.md).
 
 ## Documentation map
 

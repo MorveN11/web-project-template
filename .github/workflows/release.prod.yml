@@ -21,6 +21,9 @@ concurrency:
 
 jobs:
   release:
+    # Opt-in: set repo variable ENABLE_RELEASES=true once the secrets in
+    # .github/SECRETS.md exist. Unset = whole workflow skips (green).
+    if: ${{ vars.ENABLE_RELEASES == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -49,6 +52,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   changes:
+    if: ${{ vars.ENABLE_RELEASES == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       api: ${{ steps.filter.outputs.api }}
