@@ -32,7 +32,7 @@ jobs:
       new_tag: ${{ steps.semantic.outputs.new_release_version || github.sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -60,7 +60,7 @@ jobs:
       # .github/**, docker-compose, .env*.example, etc.).
       config: ${{ steps.filter.outputs.config }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: dorny/paths-filter@v4
@@ -113,7 +113,7 @@ jobs:
 
       - name: Checkout
         if: steps.should_run.outputs.should_run == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
