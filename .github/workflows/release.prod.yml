@@ -70,11 +70,14 @@ jobs:
     needs: [release, changes]
     runs-on: ubuntu-latest
     env:
-      # Job-level so the source-maps step (after the docker push) can
-      # resolve IMAGE_NAMESPACE — step-level env doesn't propagate.
       IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
     strategy:
       fail-fast: false
+      # Serialized on purpose: serializing api→web avoids races during
+      # container swap when the web image calls the live api at build
+      # time. Matrix order is api → web. Forks that don't pre-render
+      # against the api can drop this back to default parallelism.
+      max-parallel: 1
       matrix:
         service:
           - id: api
@@ -82,18 +85,11 @@ jobs:
             context: .
             dockerfile: apps/api/Dockerfile
             webhook_secret: DOKPLOY_DEPLOY_WEBHOOK_API_PROD
-            # GlitchTip project SLUG — passed to `getsentry/action-release@v3`
-            # as `SENTRY_PROJECT`. GlitchTip's `/api/0/projects/{org}/{slug}/`
-            # only resolves slugs, not numeric ids. Read from a per-env GitHub
-            # variable (set in repo Settings → Secrets and variables →
-            # Variables) so the slug can change without re-touching YAML.
-            sentry_project: ${{ vars.SENTRY_PROJECT_API_PROD }}
           - id: web
             name: web
             context: .
             dockerfile: apps/web/Dockerfile
             webhook_secret: DOKPLOY_DEPLOY_WEBHOOK_WEB_PROD
-            sentry_project: ${{ vars.SENTRY_PROJECT_WEB_PROD }}
     steps:
       - name: Should this service build?
         id: should_run
@@ -126,6 +122,12 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Wait for api before building web
+        if: matrix.service.id == 'web' && steps.should_run.outputs.should_run == 'true'
+        env:
+          API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: .github/scripts/wait-api-healthy.sh "$API_URL"
+
       - name: Build & push (prod)
         if: steps.should_run.outputs.should_run == 'true'
         uses: docker/build-push-action@v7
@@ -142,19 +144,16 @@ jobs:
             # Public site URL — baked into metadataBase, OG url, sitemap,
             # canonical. Required for Google OAuth domain matching.
             NEXT_PUBLIC_SITE_URL=${{ secrets.NEXT_PUBLIC_SITE_URL_PROD }}
-            # Build-time only (source map upload). Empty = no source maps.
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             # Non-sensitive identifiers — read from `vars.*` (set in
             # repo settings) instead of hardcoding the org in YAML.
-            # Project ID + URL are parsed from the DSN by the consumer
-            # (next.config.ts for web, the upload step for api) — the
-            # DSN format `https://<key>@<host>/<project_id>` carries
-            # both. Release name shared by api + web (same matrix
-            # builds against the same `release` job output).
+            # Source maps ship disabled by default (see next.config.ts) —
+            # these only matter for forks that re-enable upload, which
+            # also needs restoring `SENTRY_AUTH_TOKEN`. Release name
+            # shared by api + web (same matrix builds against the same
+            # `release` job output), still used for event tagging.
             SENTRY_ORG=${{ vars.SENTRY_ORG }}
             # GlitchTip base URL — forwarded to `withSentryConfig` as
-            # `sentryUrl` (web) and read by the api upload step's
-            # `SENTRY_URL` env. Same value as `vars.SENTRY_URL`.
+            # `sentryUrl`. Same value as `vars.SENTRY_URL`.
             NEXT_PUBLIC_SENTRY_URL=${{ vars.SENTRY_URL }}
             SENTRY_RELEASE=${{ needs.release.outputs.new_tag }}-${{ matrix.service.id }}
             # GlitchTip / Sentry — inlined into the JS bundle at build time.
@@ -185,38 +184,16 @@ jobs:
           cache-from: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:buildcache
           cache-to: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:buildcache,mode=max
 
-      - name: Extract api dist from image
+      - name: Record api uptime before deploy
+        id: api_uptime
         if: matrix.service.id == 'api' && steps.should_run.outputs.should_run == 'true'
-        shell: bash
         env:
-          IMAGE: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service.name }}:${{ needs.release.outputs.new_tag }}
+          API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: |
-          # The api image's entrypoint runs prisma migrations + boots
-          # the node service. Override to /bin/true so `docker create`
-          # exits immediately without starting the api — we only need
-          # the dist/ directory that esbuild emitted during the build.
-          CID=$(docker create --entrypoint /bin/true "$IMAGE")
-          docker cp "$CID":/app/apps/api/dist ./dist
-          docker rm "$CID" >/dev/null
-
-      - name: Upload api source maps to GlitchTip
-        if: matrix.service.id == 'api' && steps.should_run.outputs.should_run == 'true'
-        uses: getsentry/action-release@v3
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          # GlitchTip base URL. Not a secret — the hostname is public.
-          # `SENTRY_PROJECT` per matrix entry. Action uses these to
-          # resolve all CLI calls (`https://<url>/api/0/...`).
-          SENTRY_URL: ${{ vars.SENTRY_URL }}
-          SENTRY_PROJECT: ${{ matrix.service.sentry_project }}
-        with:
-          release: ${{ needs.release.outputs.new_tag }}-${{ matrix.service.id }}
-          sourcemaps: ./dist
-          set_commits: auto
-          # First-ever release has no previous tag; without this the
-          # `set_commits auto` step would fail the whole upload.
-          ignore_missing: 'true'
+          # Used to detect the container swap: the new process reports a
+          # LOWER uptime than the one answering right now.
+          uptime=$(curl -fsS --max-time 10 "${API_URL%/}/health" | grep -oE '"uptime_seconds"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' || true)
+          echo "prev=${uptime:-0}" >>"$GITHUB_OUTPUT"
 
       - name: Trigger Dokploy (prod)
         if: steps.should_run.outputs.should_run == 'true'
@@ -232,6 +209,13 @@ jobs:
           echo "[prod] Triggering Dokploy for $SERVICE (webhook: $WEBHOOK)..."
           curl -L -X GET --fail-with-body "$DOKPLOY_URL/api/deploy/$WEBHOOK"
           echo
+
+      - name: Wait for api deploy to settle
+        if: matrix.service.id == 'api' && steps.should_run.outputs.should_run == 'true'
+        env:
+          API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          PREV_UPTIME: ${{ steps.api_uptime.outputs.prev }}
+        run: .github/scripts/wait-api-healthy.sh "$API_URL" "$PREV_UPTIME"
 
       - name: Post run summary (prod)
         if: steps.should_run.outputs.should_run == 'true'

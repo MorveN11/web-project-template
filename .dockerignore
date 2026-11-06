@@ -43,17 +43,14 @@ AGENTS.md
 *.log
 .DS_Store
 
-# Claude + agents tooling — never needed inside the image
-# (skill caches, agent skills, skill metadata — not part of the app)
+# AI-agent tooling — never needed inside the image
 .claude
-.agents
 
 # Tooling configs — never used at build or runtime
-# (lint/format/release metadata, editor settings, skills lockfile)
+# (lint/format/release metadata, editor settings)
 biome.json
 .editorconfig
 release.config.mjs
-skills-lock.json
 
 # Husky / git hooks — never run inside the image
 .husky

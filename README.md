@@ -1,6 +1,45 @@
 # web-project-template
 
+[![CI](https://github.com/MorveN11/web-project-template/actions/workflows/ci.yml/badge.svg)](https://github.com/MorveN11/web-project-template/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D24-339933)](package.json)
+
 Minimal web project template. pnpm workspaces, two deployable apps + two shared packages. **The only domain shipped is `User`** — fork and replace it with your first real feature. Everything around it (auth, db, CI/CD, docker, lint, formatting) is the boilerplate you keep.
+
+## Why this template
+
+Most "starter" repos give you a framework and leave auth, caching, error
+monitoring, rate-limiting, and CI/CD as homework. This one ships all of it
+already wired and already deployable — Clerk auth with role-based access,
+Redis-backed caching, GlitchTip/Sentry error monitoring, a layered
+route→service→repository backend, and a two-environment (`test`/`main`)
+release pipeline to Dokploy via Docker Hub. You fork it, replace the one
+`User` domain entity with your real feature, and you're building product
+logic on day one instead of re-deciding infrastructure.
+
+It's aimed at solo developers and small teams who want a production-ready
+baseline for a personal or client project without re-litigating the same
+stack decisions every time.
+
+## Getting started with your own project
+
+1. Click **Use this template** on GitHub (or `git clone` and drop the history).
+2. Follow the [first 5 minutes](#tldr--first-5-minutes) below to run it locally.
+3. Walk the [forking checklist](#forks-assets--identity-checklist) to rename the project and replace `User` with your domain.
+4. Set up CI/CD secrets from [`.github/SECRETS.md`](.github/SECRETS.md) when you're ready to deploy.
+
+## Documentation map
+
+| Doc | What's in it |
+| --- | --- |
+| [`docs/architecture.md`](docs/architecture.md) | Backend/frontend layering, auth, env, logging, error monitoring, CI/CD |
+| [`apps/web/CONVENTIONS.md`](apps/web/CONVENTIONS.md) | Frontend component, form, pagination and error-handling rules |
+| [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md) | Code conventions for AI coding agents and humans alike |
+| [`.github/SECRETS.md`](.github/SECRETS.md) | Every GitHub secret/variable the release pipeline reads |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Gitflow, commits, PR process |
+| [`SECURITY.md`](SECURITY.md) | How to report a vulnerability |
+
+Contributing? See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
 
@@ -40,7 +79,7 @@ pnpm dev
 | API docs | **@scalar/hono-api-reference** — `/docs` page with live Try-It-Out + JWT auth UI |
 | Webhooks | **Svix** (Clerk's webhook infra) — verified via `verifyWebhook()` from `@clerk/backend/webhooks` |
 | Database | **Postgres 18** (Docker compose for dev + prod) |
-| Cache | **Redis 8** (Docker compose) — L2 cache for Clerk BAPI user memo (`apps/api/src/cache/clerk-user.ts`). Optional — api degrades to in-process L1 when Redis is unreachable. |
+| Cache | **Redis 8** (Docker compose) — L2 cache for Clerk BAPI user memo (`apps/api/src/lib/cache/clerk-user.ts`). Optional — api degrades to in-process L1 when Redis is unreachable. |
 | CI/CD | **GitHub Actions** (PR gate + per-branch release + Dokploy webhook) |
 | Format/lint | **Biome** (single tool, replaces eslint + prettier, one config at root) |
 
@@ -197,10 +236,13 @@ Each **feature** is one folder with the same file layout (`routes.ts` / `schemas
 
 ```
 src/
-├── auth/                  shared infra (auth-related, used by ≥ 2 features)
-├── core/                  shared infra (Result, handle)
-├── db/                    shared infra
-├── openapi/               shared infra (security + responses constants)
+├── core/                  Result, handle, pagination, prisma-error helpers
+├── lib/                   shared infra (used by ≥ 2 features)
+│   ├── auth/              Clerk JWT verification + role guard
+│   ├── cache/             Redis client + L1/L2 caches
+│   ├── db/                Prisma logging hooks
+│   ├── http/              rate limiting
+│   └── openapi/           security + responses constants
 ├── env.ts                 shared infra
 ├── logger.ts              shared infra
 ├── types/                 shared infra (Hono context augmentation)
@@ -250,7 +292,7 @@ const syncSelfRoute = createRoute({
 });
 ```
 
-`security` + `responses` constants live in `src/openapi/` so every feature reuses the same shape.
+`security` + `responses` constants live in `src/lib/openapi/` so every feature reuses the same shape.
 
 ### 5. Auth is layered
 
@@ -260,7 +302,7 @@ Three layers, in order:
 | --- | --- | --- |
 | **Clerk middleware** (proxy.ts) | `apps/web/src/proxy.ts` | Authenticated? If no → sign-in. |
 | **Route layout gate** | `app/(authenticated)/app/admin/layout.tsx` | Correct role? If no → redirect. |
-| **API middleware** | `apps/api/src/auth/clerk.ts`, `apps/api/src/auth/role.ts` | JWT valid? Role allowed? If no → 401/403. |
+| **API middleware** | `apps/api/src/lib/auth/clerk.ts`, `apps/api/src/lib/auth/role.ts` | JWT valid? Role allowed? If no → 401/403. |
 
 UI render guards (`<RequireRole>`, `<IfRole>`, `useRole()`) hide sub-trees without affecting the API gate. Use them to make pages look clean, but never as the only security check.
 
@@ -507,12 +549,12 @@ grep -E '^CLERK_(SECRET|PUBLISHABLE|WEBHOOK_SIGNING)_KEY' apps/web/.env >> apps/
 | Want to learn… | Start at |
 | --- | --- |
 | How an HTTP request is processed | `apps/api/src/index.ts` (boot) → `apps/api/src/features/users/routes.ts` (split router) |
-| How auth is verified server-side | `apps/api/src/auth/clerk.ts` (`verifyClerkToken`, `requireAuth`, `attachUserLogger`) + `auth/role.ts` (`requireRole`) |
-| How OpenAPI + Scalar docs are wired | `apps/api/src/openapi/{security,responses}.ts` |
+| How auth is verified server-side | `apps/api/src/lib/auth/clerk.ts` (`verifyClerkToken`, `requireAuth`, `attachUserLogger`) + `lib/auth/role.ts` (`requireRole`) |
+| How OpenAPI + Scalar docs are wired | `apps/api/src/lib/openapi/{security,responses}.ts` |
 | How Clerk webhook events sync the local DB | `apps/api/src/features/webhooks/{routes,service}.ts` |
 | How the frontend reads the role on the client | `apps/web/src/features/auth/role-context.tsx` + `useRole()` hook |
 | How a server-component role gate works | `apps/web/src/app/(admin)/layout.tsx` (compare with `(authenticated)/layout.tsx`) |
-| How the JWT template claims flow through | Clerk dashboard → JWT template → `apps/api/src/auth/clerk.ts` `rawRole` extraction |
+| How the JWT template claims flow through | Clerk dashboard → JWT template → `apps/api/src/lib/auth/clerk.ts` `rawRole` extraction |
 | How pagination metadata is shared | `packages/shared-types/src/cross-cutting/pagination.ts` + `paginationResponseSchema()` factory |
 | How the web sync self-bootstraps the local User row | `apps/web/src/features/auth/services/auth.service.ts` (`getOrSyncMyUserSession`) + `actions.ts` |
 
@@ -623,7 +665,7 @@ When in doubt, deploy, open DevTools → Network, reload — blocked requests sh
 | Service | What for | Where configured |
 |---|---|---|
 | Clerk | Auth (sign-in / sign-up / webhooks / organizations) | Clerk dashboard → API keys → GitHub Secrets |
-| GlitchTip or Sentry | Error monitoring + source maps | `SENTRY_DSN_*` + `SENTRY_AUTH_TOKEN` + `vars.SENTRY_ORG` |
+| GlitchTip or Sentry | Error monitoring (source maps disabled by default) | `NEXT_PUBLIC_SENTRY_DSN_*` + `SENTRY_DSN` |
 | Umami (self-hosted) | Privacy-friendly analytics (cookieless) | `NEXT_PUBLIC_UMAMI_SCRIPT_URL` + `NEXT_PUBLIC_UMAMI_WEBSITE_ID` (prod only) |
 | Postgres | App database | Neon / Supabase / self-hosted |
 | Redis | L2 cache for Clerk-user memo | Upstash / self-hosted |
@@ -784,7 +826,7 @@ Any time you add:
 
 ---
 
-## Cloudflare Configuration Guide (Next.js & Astro Universal)
+## Cloudflare Configuration Guide (Next.js)
 
 ---
 
@@ -821,7 +863,7 @@ This rule automatically canonicalizes all incoming traffic by redirecting `www.y
 
 ---
 
-### ⚡ Cache Rules Setup (Next.js + Astro)
+### ⚡ Cache Rules Setup (Next.js)
 
 Dashboard location: **Domain -> Caching -> Cache Rules -> Create rule**.
 
@@ -844,13 +886,13 @@ Ensures that any request containing active session cookies (e.g., Clerk) bypasse
 ---
 
 #### [2] Rule 2 — `02 - Cache static assets`
-Caches immutable JavaScript bundles, CSS, and fonts generated by Next.js (`/_next/static/`) and Astro (`/_astro/`) on the Edge network.
+Caches immutable JavaScript bundles, CSS, and fonts generated by Next.js (`/_next/static/`) on the Edge network.
 
 * **Rule name:** `02 - Cache static assets`
 * **If incoming requests match:** `Custom filter expression`
 * **Expression (`Edit expression`):**
   ```http
-  starts_with(http.request.uri.path, "/_next/static/") or starts_with(http.request.uri.path, "/_astro/")
+  starts_with(http.request.uri.path, "/_next/static/")
   ```
 * **Cache eligibility:** `Eligible for cache`
 * **Edge TTL:** `Use cache-control header if present, bypass cache if not`
@@ -859,13 +901,13 @@ Caches immutable JavaScript bundles, CSS, and fonts generated by Next.js (`/_nex
 ---
 
 #### [3] Rule 3 — `03 - Cache image optimizer`
-Stores images processed by Next.js (`/_next/image`) and Astro (`/_image`) in Cloudflare's Edge network, offloading CPU/memory usage from the origin server.
+Stores images processed by Next.js (`/_next/image`) in Cloudflare's Edge network, offloading CPU/memory usage from the origin server.
 
 * **Rule name:** `03 - Cache image optimizer`
 * **If incoming requests match:** `Custom filter expression`
 * **Expression (`Edit expression`):**
   ```http
-  http.request.uri.path eq "/_next/image" or http.request.uri.path eq "/_image"
+  http.request.uri.path eq "/_next/image"
   ```
 * **Cache eligibility:** `Eligible for cache`
 * **Edge TTL:** `Ignore cache-control header and use this TTL` → **`1 hour`** (`3600`s)
@@ -876,12 +918,12 @@ Stores images processed by Next.js (`/_next/image`) and Astro (`/_image`) in Clo
 
 ## 🔧 Manual Cache Purges
 
-When you change `next.config.ts` (CSP, COEP, COOP, security headers), or replace Firebase Storage assets, the CDN can keep serving stale responses for up to 5 minutes (the origin `s-maxage`).
+When you change `next.config.ts` (CSP, COEP, COOP, security headers), or replace static assets, the CDN can keep serving stale responses for up to 5 minutes (the origin `s-maxage`).
 
 **Purge immediately:**
 
 1. Dashboard → **Caching → Configuration → Purge Cache**
-2. **Custom Purge** → Type: **Hostname** → enter `resona.yourdomain.com`
+2. **Custom Purge** → Type: **Hostname** → enter `yourdomain.com`
 3. Click **Purge**
 
 Or via API (scriptable in CI):
@@ -890,10 +932,18 @@ Or via API (scriptable in CI):
 curl -X POST "https://api.cloudflare.com/client/v4/zones/<ZONE_ID>/purge_cache" \
   -H "Authorization: Bearer <API_TOKEN>" \
   -H "Content-Type: application/json" \
-  -d '{"hosts":["resona.yourdomain.com"]}'
+  -d '{"hosts":["yourdomain.com"]}'
 ```
 
 Where:
 
 * `<ZONE_ID>` — Dashboard → **Overview** → right sidebar → **API** tab
 * `<API_TOKEN>` — **My Profile → API Tokens → Create Token** → template *"Edit zone cache purge"*, scope your zone
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE). Use it for personal projects, client work, or
+as the base for your own product. No attribution required, though a star
+is always appreciated.

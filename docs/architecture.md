@@ -18,8 +18,11 @@ web-project-template/
 ├── docker-compose.prod.yml  full stack — closest-to-prod validation
 ├── biome.json              SINGLE lint + format config (root)
 ├── tsconfig.base.json      shared TS config (every package extends it)
+├── LICENSE / SECURITY.md / CODE_OF_CONDUCT.md / CONTRIBUTING.md
 └── .github/
     ├── workflows/           check-branch, check-pull-request, ci, release.{prod,test}
+    ├── ISSUE_TEMPLATE/      bug + feature forms
+    ├── SECRETS.md           every GitHub secret/variable the pipeline reads
     └── CODEOWNERS           auto-requested reviewers per path
 ```
 
@@ -62,6 +65,22 @@ HTTP request
 ```
 
 The canonical reference is `apps/api/src/features/users/`. Same file layout in every other feature.
+
+### Shared infra (`apps/api/src/lib/`, `core/`)
+
+Anything used by two or more features lives outside `features/`:
+
+| Path | Purpose |
+|---|---|
+| `core/` | `Result<T>`/`AppError`, `handleResult`, pagination envelope builder, Prisma error mapper |
+| `lib/auth/` | Clerk JWT verification (`requireAuth`) + role guard (`requireRole`) |
+| `lib/cache/` | ioredis client + L1 (in-process) / L2 (Redis) caches |
+| `lib/db/` | Prisma query/event logging hooks |
+| `lib/http/` | rate limiting |
+| `lib/openapi/` | shared `security` + error-`responses` constants for route definitions |
+| `env.ts`, `logger.ts`, `sentry.ts` | fail-fast env parse, pino logger, GlitchTip/Sentry init |
+
+Rule of thumb: feature-specific code goes under `features/<name>/`; if a second feature needs it, move it to `lib/` or `core/`.
 
 ### Rules
 
@@ -319,7 +338,7 @@ app.use('*', attachUserLogger);               // adds user_id when auth present
 
 The Hono `ContextVariableMap` augmentation (`apps/api/src/types/hono-context.ts`) makes `c.set/c.get('log', …)` type-safe.
 
-### Prisma events (`apps/api/src/db/prisma-logging.ts`)
+### Prisma events (`apps/api/src/lib/db/prisma-logging.ts`)
 
 `Prisma.addHook('query', …)` writes through pino. Opt-in via `LOG_QUERIES=true`.
 
@@ -339,10 +358,21 @@ export const logger = {
 
 ---
 
-## 8. CI/CD flow
+## 8. Error monitoring (GlitchTip / Sentry)
+
+Wired by default, off unless a DSN is set. Dev never tracks (`NODE_ENV=development` hard gate).
+
+- **api:** `apps/api/src/sentry.ts` (`initSentry()` at boot; unhandled errors in `app.onError` are captured).
+- **web:** `src/instrumentation-client.ts` (browser), `sentry.server.config.ts`, `sentry.edge.config.ts`, registered by `src/instrumentation.ts`. Browser events go through the `/api/glitchtip-tunnel` route to dodge ad-blockers.
+- **Privacy:** `sendDefaultPii: false` + a shared `scrubEvent` (`apps/web/src/lib/sentry-scrub.ts`, mirrored in the api) strips request bodies, cookies, auth headers and IPs before sending.
+- **Source maps:** disabled by default; no `SENTRY_AUTH_TOKEN` needed. See `.github/SECRETS.md` to re-enable.
+
+---
+
+## 9. CI/CD flow
 
 ```
-feature/* (PR→test)         test → main PR        main → dev sync
+feature/* (PR→dev)          test → main PR        main → dev sync
        │                          │                      │
        ▼                          ▼                      ▼
  check-branch              release-test.yml       (no-op merge)
@@ -366,13 +396,14 @@ See `CONTRIBUTING.md` § 2 for the developer-side flow.
 
 ---
 
-## 9. Files to read first
+## 10. Files to read first
 
 - `apps/api/src/features/users/{routes,service,repository}.ts` — the canonical feature shape (the only domain shipped with the template).
 - `apps/api/src/core/{result,handle}.ts` — Result pattern.
-- `apps/api/src/auth/{clerk,role}.ts` — server-side auth gate.
+- `apps/api/src/lib/auth/{clerk,role}.ts` — server-side auth gate.
 - `apps/web/src/features/auth/{actions,role-context}.tsx` — server-action + client-side role context pattern.
 - `apps/web/src/features/auth/services/auth.service.ts` — fluent api client wrapper for user endpoints.
 - `packages/db/prisma.config.ts` — Prisma 7 adapter setup.
+- `apps/web/CONVENTIONS.md` — frontend conventions (components, forms, pagination, errors).
 - `biome.json` — single source of truth for lint + format.
 - `.github/workflows/release.prod.yml` — release pipeline.

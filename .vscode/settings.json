@@ -52,7 +52,6 @@
     "**/.turbo": true,
     "**/.containers": true,
     "**/coverage": true,
-    "**/.agents": true,
     "**/.claude": true,
     "**/.vscode": true
   },

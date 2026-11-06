@@ -25,7 +25,6 @@
       "!**/apps/*/.env.*",
       "!**/packages/*/.env",
       "!**/packages/*/.env.*",
-      "!**/.agents",
       "!**/.claude",
       "!**/.vscode"
     ]

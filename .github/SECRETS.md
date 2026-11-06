@@ -21,7 +21,7 @@ Two patterns coexist:
 
 The `NEXT_PUBLIC_*` prefix inlines the value into the JS bundle at build time. Set them once in GitHub Secrets + `pnpm install` is all it takes for a fresh fork.
 
-`CLERK_SECRET_KEY` is **not** in the CI secrets list. The api (`apps/api/src/auth/clerk.ts`) uses it for JWT verification — that runs at runtime inside the Docker container, where the value is set via compose `environment:` from the host `.env` (or the deployment platform's secret manager). CI never sees the secret key.
+`CLERK_SECRET_KEY` is **not** in the CI secrets list. The api (`apps/api/src/lib/auth/clerk.ts`) uses it for JWT verification — that runs at runtime inside the Docker container, where the value is set via compose `environment:` from the host `.env` (or the deployment platform's secret manager). CI never sees the secret key.
 
 ## Build-time identity vars (added for Google OAuth / Search Console verification)
 
@@ -61,11 +61,12 @@ Every row below is referenced as `${{ secrets.<NAME> }}` in the workflow. Adding
 | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | both | Sign-up entry route. Same in every env. |
 | `NEXT_PUBLIC_SITE_URL_PROD` | `release.prod.yml` | Prod hostname baked into the web bundle (metadataBase, OG, sitemap). See "Build-time identity vars" above. |
 | `NEXT_PUBLIC_SITE_URL_TEST` | `release.test.yml` | Test/staging hostname baked into the test web bundle. |
-| `SENTRY_AUTH_TOKEN` | both | Single GlitchTip auth token for source-map upload. Used by the web build (`@sentry/nextjs`'s `withSentryConfig` plugin) AND the api's dedicated `Upload api source maps to GlitchTip` step (which uses `getsentry/action-release@v3` to upload maps extracted from the just-built image). Auth tokens in GlitchTip/Sentry are user-scoped, not env-scoped — one token is enough for both prod and test (each release's `--release` tag keeps the artifacts separate). Build-time only — never runtime (image-history leak). |
 | `NEXT_PUBLIC_SENTRY_DSN_PROD` | `release.prod.yml` | GlitchTip web DSN for the prod web build (inlined at build time). |
 | `NEXT_PUBLIC_SENTRY_DSN_TEST` | `release.test.yml` | GlitchTip web DSN for the test web build (inlined at build time). |
 | `NEXT_PUBLIC_UMAMI_SCRIPT_URL` | `release.prod.yml` only | Umami script URL (e.g. `https://your-umami.example.com/script.js`). Inlined at build time. Production only — test deploys deliberately omit. |
 | `NEXT_PUBLIC_UMAMI_WEBSITE_ID` | `release.prod.yml` only | Umami website-id. Inlined at build time. Production only. |
+
+**`SENTRY_AUTH_TOKEN` is not required.** Source maps ship disabled by default (`apps/web/next.config.ts`'s `sourcemaps: { disable: true }`), and the api has no sourcemap-upload step — nothing in either workflow reads this secret. Only set it (and re-add the upload steps) if a fork deliberately re-enables sourcemap upload.
 
 ## Required only for `ci.yml`
 
@@ -82,8 +83,8 @@ Postgres in CI is a throwaway service container, no external secret needed.
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `IMAGE_NAMESPACE` | falls back to `DOCKERHUB_USERNAME` | Image namespace between registry host and service name. Set when the repo's image namespace differs from the Docker Hub user (org-owned repos). |
-| `SENTRY_ORG` | none | GlitchTip / Sentry org slug. Read by `getsentry/action-release@v3` (api upload step) and `withSentryConfig` (web build) for source-map upload. Public identifier, no secret material. |
-| `SENTRY_URL` | none | GlitchTip base URL (e.g. `https://glitchtip.example.com`). Read by `getsentry/action-release@v3` (api upload) + forwarded to web via `NEXT_PUBLIC_SENTRY_URL` build arg. Public identifier — the hostname is public. |
+| `SENTRY_ORG` | none | GlitchTip / Sentry org slug. Only consumed for source-map upload, which is disabled by default — kept for forks that re-enable it. Public identifier, no secret material. |
+| `SENTRY_URL` | none | GlitchTip base URL (e.g. `https://glitchtip.example.com`). Forwarded to web via `NEXT_PUBLIC_SENTRY_URL` build arg; same disabled-by-default caveat as `SENTRY_ORG`. Public identifier — the hostname is public. |
 | `SENTRY_PROJECT_API_PROD` | none | GlitchTip project SLUG for the api in prod. GlitchTip's `/api/0/projects/{org}/{slug}/` only resolves slugs, not numeric ids. |
 | `SENTRY_PROJECT_API_TEST` | none | Same, for the api in test. |
 | `SENTRY_PROJECT_WEB_PROD` | none | GlitchTip project SLUG for the web in prod. |
@@ -91,7 +92,7 @@ Postgres in CI is a throwaway service container, no external secret needed.
 
 `IMAGE_NAMESPACE` is consumed by `release.prod.yml` and `release.test.yml` for image tags, cache namespace, and registry path. The Docker `login-action` always uses `DOCKERHUB_USERNAME` directly.
 
-The `SENTRY_*` vars live in repo Settings → Secrets and variables → **Variables** (public identifiers, not secrets). The release workflow passes them straight to `getsentry/action-release@v3` as `SENTRY_ORG` / `SENTRY_URL` / `SENTRY_PROJECT`, and to `withSentryConfig` via `NEXT_PUBLIC_SENTRY_URL` + `NEXT_PUBLIC_SENTRY_PROJECT` build args. Project slug is no longer parsed from the DSN — explicit vars are easier to rotate without re-touching YAML.
+The `SENTRY_*` vars live in repo Settings → Secrets and variables → **Variables** (public identifiers, not secrets). They're forwarded to `withSentryConfig` via `NEXT_PUBLIC_SENTRY_URL` + `NEXT_PUBLIC_SENTRY_PROJECT` build args but have no effect while source-map upload is disabled by default (see below).
 
 ## Build-time only env (NOT GitHub Secrets)
 
@@ -103,31 +104,16 @@ These flow through Dokploy build-arg injection (or `host .env` for local `docker
 | `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | Env tag for GlitchTip UI filtering. **Hardcoded per workflow** (`production` for `release.prod.yml`, `testing` for `release.test.yml`). Not a secret. | `development` |
 | `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | Fraction of Sentry transactions to sample. **Hardcoded `0.01`** per workflow. | `0.01` |
 
-Note: `SENTRY_AUTH_TOKEN` is also build-time only — see the `Required for release` table above. `SENTRY_RELEASE` is build-time-injected by CI (`needs.release.outputs.new_tag` from the semantic-release job) and forwarded to the runtime container via the Dockerfile `ARG` + `ENV` passthrough so `apps/api/src/env.ts` picks it up at boot.
+Note: `SENTRY_RELEASE` is build-time-injected by CI (`needs.release.outputs.new_tag` from the semantic-release job) and forwarded to the runtime container via the Dockerfile `ARG` + `ENV` passthrough so `apps/api/src/env.ts` picks it up at boot — used for event tagging, independent of source maps.
 
-### Api source-map upload step (where the maps actually leave the build)
+### Source maps are disabled by default
 
-The api's `package.json` `build` script is pure esbuild — no Sentry integration. Sourcemap upload is a dedicated CI step that runs **after** `docker build-push`, split into two jobs for clarity:
+`apps/web/next.config.ts` sets `sourcemaps: { disable: true }` in `withSentryConfig` — no `.map` generation, no upload, no `SENTRY_AUTH_TOKEN` needed. The api never had a build-time Sentry integration of its own (pure esbuild); its former CI steps (`Extract api dist from image` + `Upload api source maps to GlitchTip`, via `getsentry/action-release@v3`) have been removed from both release workflows since they had nothing left to upload.
 
-**Step 1 — `Extract api dist from image`** (plain shell step):
-
-1. `docker create --entrypoint /bin/true <image>` — instantiate the just-pushed image without booting the api (override kills the prisma-migrate + node entrypoint).
-2. `docker cp <cid>:/app/apps/api/dist ./dist` — copy the esbuild output (bundles + `.map` files) to the host runner.
-
-**Step 2 — `Upload api source maps to GlitchTip`** (uses `getsentry/action-release@v3`):
-
-The `getsentry/action-release@v3` Action wraps `@sentry/cli` with sensible defaults — `set_commits: auto` annotates each release with the commits it contains, `ignore_missing: 'true'` swallows the "no previous tag" error on the very first release. No `npx`, no manual `sentry-cli` invocation, no `rm -rf ./dist` cleanup (the Action does its own tmpdir management).
-
-Inputs:
-- `release: ${{ needs.release.outputs.new_tag }}-${{ matrix.service.id }}` — per-service release tag (`v1.2.3-api`, `v1.2.3-web`).
-- `sourcemaps: ./dist` — the directory extracted in step 1.
-- Env: `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_URL`, `SENTRY_PROJECT` (the per-service SLUG from `vars.SENTRY_PROJECT_{API,WEB}_{PROD,TEST}`).
-
-GlitchTip project mapping (explicit via vars, not parsed from DSN):
-- Web builds upload to the SLUG in `vars.SENTRY_PROJECT_WEB_{PROD,TEST}`. Handled by `withSentryConfig` inside `next build` (`apps/web/next.config.ts` reads `NEXT_PUBLIC_SENTRY_PROJECT`).
-- Api builds upload to the SLUG in `vars.SENTRY_PROJECT_API_{PROD,TEST}`. Handled by the dedicated CI step above.
-
-Both envs (testing + production) upload to separate projects on GlitchTip so events stay segregated in the UI.
+To re-enable (both sides, if a fork wants resolved stack frames in GlitchTip):
+1. Flip `sourcemaps: { disable: false }` in `apps/web/next.config.ts`.
+2. Re-add `SENTRY_AUTH_TOKEN` as a required secret and pass it as a build arg in both release workflows.
+3. Re-add the api's extract + `getsentry/action-release@v3` upload steps, keyed off `vars.SENTRY_PROJECT_API_{PROD,TEST}` (the api upload target; web uploads via the `withSentryConfig` plugin itself).
 
 ## Runtime-only env (not in CI)
 
@@ -147,7 +133,7 @@ These are set in `docker-compose.prod.yml` `environment:` blocks (or your deploy
 | `REDIS_KEY_PREFIX` | Per-app namespace for cache keys. The ioredis client computes `keyPrefix: \`${REDIS_KEY_PREFIX}${NODE_ENV}-\`` so dev/testing/prod never collide. Set to `<app-name>-` (e.g. `web-project-template-`) per fork. | `web-project-template-` |
 | `CORS_ORIGIN` | CSV of browser origins allowed to call the api. **Per-env**: prod = your prod hostname, test = test hostname, dev = `http://localhost:3000`. | `http://localhost:3000` |
 | `LOG_LEVEL` | Pino log level (`debug`/`info`/`warn`/`error`). | `info` |
-| `LOG_QUERIES` | When `true`, logs every Prisma query (`apps/api/src/db/prisma-logging.ts`). | `false` |
+| `LOG_QUERIES` | When `true`, logs every Prisma query (`apps/api/src/lib/db/prisma-logging.ts`). | `false` |
 | `SEED_ENABLED` | When `true`, runs `prisma/seed.ts` at container boot (creates `admin@template.test` on empty DB). Flip to `false` in environments that don't want the seed. | `true` |
 | `SENTRY_DSN` | GlitchTip DSN for the api (errors land under `service=api, environment=<tag>`). **DEPLOYED ENVS ONLY** — the SDK has a hard `NODE_ENV !== 'development'` gate so dev cannot track even if a stray DSN leaks. | `''` |
 | `SENTRY_ENVIRONMENT` | Env tag for GlitchTip UI filtering. Set per env (`testing` for test, `production` for main). | `development` |
@@ -196,11 +182,10 @@ For a fresh fork, create these GitHub Secrets in order:
 4. `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY_{DEV,TEST,PROD}` (3)
 5. `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL`
 6. `NEXT_PUBLIC_SITE_URL_{PROD,TEST}` (2)
-7. `SENTRY_AUTH_TOKEN` (1)
-8. `NEXT_PUBLIC_SENTRY_DSN_{PROD,TEST}` (2)
-9. `NEXT_PUBLIC_UMAMI_SCRIPT_URL`, `NEXT_PUBLIC_UMAMI_WEBSITE_ID`
+7. `NEXT_PUBLIC_SENTRY_DSN_{PROD,TEST}` (2)
+8. `NEXT_PUBLIC_UMAMI_SCRIPT_URL`, `NEXT_PUBLIC_UMAMI_WEBSITE_ID`
 
-Total: **22 secrets** + the optional `IMAGE_NAMESPACE` + `SENTRY_ORG` + `SENTRY_URL` + `SENTRY_PROJECT_{API,WEB}_{PROD,TEST}` variables (6 vars).
+Total: **21 secrets** + the optional `IMAGE_NAMESPACE` + `SENTRY_ORG` + `SENTRY_URL` + `SENTRY_PROJECT_{API,WEB}_{PROD,TEST}` variables (6 vars, only relevant if source maps are re-enabled).
 
 Then in Dokploy (or whichever platform runs `docker compose -f docker-compose.prod.yml`), set the **Runtime-only env** table from `host .env` — `CLERK_SECRET_KEY`, `DATABASE_URL`, `SENTRY_DSN`, `CORS_ORIGIN=<your-prod-hostname>`, `CLERK_AUTHORIZED_PARTIES=<your-prod-hostname>,<existing values>`, etc.
 

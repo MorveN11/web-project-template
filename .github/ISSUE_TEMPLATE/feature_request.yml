@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an improvement to the template itself.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This repo is a *template*, not a product — feature requests here should
+        make the starting point better for everyone forking it, not add
+        business logic specific to one project. Product-specific features belong
+        in your own fork, not here.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's missing or awkward today?
+      description: What does a fresh fork have to redo/add that the template should already provide?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What would you add/change, and roughly where (api, web, CI, docs)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approach you weighed, and why this one's better.

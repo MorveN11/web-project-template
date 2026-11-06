@@ -72,7 +72,6 @@
 - [ ] `tsconfig.base.json`
 - [ ] `pnpm-workspace.yaml`
 - [ ] `package.json` (engines / hoisted deps)
-- [ ] `.claude/skills/init-from-template/`
 
 ## Linked issue
 

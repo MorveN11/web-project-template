@@ -12,7 +12,6 @@ out
 !.env.example
 !.env.dev.example
 !.env.prod.example
-!.claude
 
 # logs
 *.log
@@ -23,10 +22,21 @@ pnpm-debug.log*
 
 # editor + OS
 .DS_Store
+Thumbs.db
 .idea
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# local tooling state (never commit personal settings)
+.claude/settings.local.json
+CLAUDE.local.md
+.pnpm-store
+.eslintcache
+.vercel
+
+# next
+next-env.d.ts
 
 # coverage
 coverage
@@ -49,3 +59,6 @@ prisma/.migrations.lock
 
 # clerk
 .clerk
+
+# private keys / certs
+*.pem

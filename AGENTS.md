@@ -60,22 +60,23 @@
 - GlitchTip is the recommended error aggregator. Sentry SDK is API-compatible — works unchanged.
 - Every fork MUST wire it by default:
   - **Backend**: `apps/api/src/sentry.ts` exports `initSentry()`. Called once at boot in `src/index.ts` after `attachPrismaLogging()`. `app.onError` unhandled branch calls `Sentry.captureException`. Pino still logs everything (dedup happens at the aggregator).
-  - **Frontend**: client config in `apps/web/sentry.client.config.ts`, server in `sentry.server.config.ts`, edge in `sentry.edge.config.ts` (loaded by `proxy.ts` which is edge runtime). `apps/web/src/instrumentation.ts` registers both via `NEXT_RUNTIME`.
+  - **Frontend**: browser init in `apps/web/src/instrumentation-client.ts`, server in `sentry.server.config.ts`, edge in `sentry.edge.config.ts` (loaded by `proxy.ts` which is edge runtime). `apps/web/src/instrumentation.ts` registers server/edge via `NEXT_RUNTIME`. All three share a `beforeSend` scrubber (`apps/web/src/lib/sentry-scrub.ts`) that strips request bodies/cookies/auth headers/IP.
 - **Dev never tracks — enforced at runtime**: every init function has a hard `NODE_ENV !== 'development'` gate. If `NODE_ENV=development`, Sentry is skipped regardless of whether `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` is set. Two layers of disable so a stray DSN in a dev `.env` (a common copy-paste mistake when provisioning testing) cannot leak laptop events to GlitchTip.
 - All env vars are optional. Leave them empty in dev (default). Set them ONLY on deployed envs (testing / production). The Docker compose prod file hard-pins `NODE_ENV: production` on api + web so the gate flips off there.
 - Environment tag (`SENTRY_ENVIRONMENT` / `NEXT_PUBLIC_SENTRY_ENVIRONMENT`) drives GlitchTip UI filtering. Use `testing` / `production` per env.
 - Tunnel route at `/api/glitchtip-tunnel` (App Router `route.ts`) bypasses ad-blockers + avoids leaking the DSN hostname in browser network tab.
-- Source maps: `SENTRY_AUTH_TOKEN` build arg only. NEVER set in the container's runtime env — leaks via `docker history`.
+- Source maps ship **disabled by default** (`apps/web/next.config.ts`'s `sourcemaps.disable: true`) — no `.map` generation/upload, no `SENTRY_AUTH_TOKEN` needed. The api's CI sourcemap-upload step was removed for the same reason (pure esbuild, nothing left to upload). Re-enabling is an explicit opt-in per fork: flip `disable: false`, re-add `SENTRY_AUTH_TOKEN` as a build arg, re-add the api's extract+upload CI steps — NEVER set the token in the container's runtime env, it leaks via `docker history`.
+- `sendDefaultPii: false` on every init (api + all three web entry points) plus a shared `scrubEvent` `beforeSend`/`beforeSendTransaction` strips request body/cookies/auth headers/IP before events leave the process.
 - Trace sample rate default 0.01 (1%). Override per env for higher fidelity.
 - `autoSessionTracking: false` — GlitchTip doesn't support Sentry sessions.
-- Secrets: `SENTRY_AUTH_TOKEN_PROD` / `SENTRY_AUTH_TOKEN_TEST` (GitHub, build-time); `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_ENVIRONMENT` / `NEXT_PUBLIC_SENTRY_ENVIRONMENT` / `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` (Dokploy env / host `.env`, NEVER set in dev).
+- Secrets: `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_ENVIRONMENT` / `NEXT_PUBLIC_SENTRY_ENVIRONMENT` / `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` (Dokploy env / host `.env`, NEVER set in dev). `SENTRY_AUTH_TOKEN` is not required unless source maps are re-enabled.
 
 ### Redis key naming (required convention for every fork)
-- Every fork MUST namespace its Redis keys via ioredis `keyPrefix` on the client (see `apps/api/src/cache/redis.ts`). The client computes the prefix as `${REDIS_KEY_PREFIX}${env.NODE_ENV}-` so dev/testing/prod never collide, even on shared Redis.
-- `REDIS_KEY_PREFIX` defaults to the app name (`web-project-template-`). Override to your fork's project name when you fork the template — e.g. Chacanos uses `REDIS_KEY_PREFIX=chacanos-`.
-- Override per-environment ONLY if api + worker of the same fork point at the same Redis (e.g. `REDIS_KEY_PREFIX=chacanos-api-` for api, `chacanos-worker-` for worker) — DON'T bypass the NODE_ENV join.
+- Every fork MUST namespace its Redis keys via ioredis `keyPrefix` on the client (see `apps/api/src/lib/cache/redis.ts`). The client computes the prefix as `${REDIS_KEY_PREFIX}${env.NODE_ENV}-` so dev/testing/prod never collide, even on shared Redis.
+- `REDIS_KEY_PREFIX` defaults to the app name (`web-project-template-`). Override to your fork's project name when you fork the template — e.g. a fork named "acme" uses `REDIS_KEY_PREFIX=acme-`.
+- Override per-environment ONLY if api + worker of the same fork point at the same Redis (e.g. `REDIS_KEY_PREFIX=acme-api-` for api, `acme-worker-` for worker) — DON'T bypass the NODE_ENV join.
 - The high-level helpers (`redisGet` / `redisSet` / `redisDel`) take unprefixed keys; ioredis prepends the joined prefix transparently. The per-cache `L2_KEY` factories in `cache/clerk-user.ts` + `cache/user-session.ts` no longer prepend `prod:` / `dev:` — env isolation is handled at the client layer.
-- Resulting key shape: `<app-name>-<env>-<cache-key>`, e.g. `chacanos-development-user:session:v1:<clerkId>`, `chacanos-production-clerk:user:v1:<sub>`.
+- Resulting key shape: `<app-name>-<env>-<cache-key>`, e.g. `acme-development-user:session:v1:<clerkId>`, `acme-production-clerk:user:v1:<sub>`.
 
 ### Anti-patterns to avoid
 - Per-feature service that talks to `database` directly. The repository facade isolates schema details from business rules.

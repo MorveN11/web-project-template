@@ -3,6 +3,16 @@
   "private": true,
   "version": "1.0.0",
   "description": "Minimal web project template. Hono + Prisma + Postgres API, Next.js + shadcn + Clerk web, pnpm workspaces. Extend with features as the project grows.",
+  "license": "MIT",
+  "author": "Jose Manuel Morales Patty",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MorveN11/web-project-template"
+  },
+  "homepage": "https://github.com/MorveN11/web-project-template#readme",
+  "bugs": {
+    "url": "https://github.com/MorveN11/web-project-template/issues"
+  },
   "packageManager": "pnpm@11.20.0",
   "engines": {
     "node": ">=24",

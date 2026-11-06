@@ -23,8 +23,8 @@ The scaffold ships exactly one domain entity (`User`, synced from Clerk). Forks 
 | Env — web | `apps/web/src/lib/env/{client,server}.ts` | `NEXT_PUBLIC_*` in client, secrets in server. |
 | Auth | `apps/web/src/features/auth/` | `getCurrentSession()` server-side; `useRole()`/`useIsAdmin()` client-side (UI hint only, never a security boundary). |
 | Route protection | `apps/web/src/proxy.ts` | Anything under `/app` is private; everything else is public. Add private pages under `app/(authenticated)/app/<feature>/`. |
-| Redis cache | `apps/api/src/cache/` | ioredis client (`redis.ts`) namespaced via `${REDIS_KEY_PREFIX}${NODE_ENV}-` (default `web-project-template-<env>-`). L1 in-proc Map + L2 Redis memo around Clerk BAPI. |
-| Error monitoring | `apps/api/src/sentry.ts` + `apps/web/sentry.{client,server,edge}.config.ts` | GlitchTip (Sentry-compatible) wired by default. All env vars optional — absent DSN = no-op. `withSentryConfig` wraps `next.config.ts`; `instrumentation.ts` registers the right runtime config. |
+| Redis cache | `apps/api/src/lib/cache/` | ioredis client (`redis.ts`) namespaced via `${REDIS_KEY_PREFIX}${NODE_ENV}-` (default `web-project-template-<env>-`). L1 in-proc Map + L2 Redis memo around Clerk BAPI. |
+| Error monitoring | `apps/api/src/sentry.ts` + `apps/web/src/instrumentation-client.ts` + `apps/web/sentry.{server,edge}.config.ts` | GlitchTip (Sentry-compatible) wired by default. All env vars optional — absent DSN = no-op. `withSentryConfig` wraps `next.config.ts`; `instrumentation.ts` registers the right runtime config. |
 | Biome config | `biome.json` (root) | NEVER create a per-package `biome.json`. |
 | Lockfile | `pnpm-lock.yaml` (root) | NEVER set `shared-workspace-lockfile: false`. |
 
@@ -93,13 +93,13 @@ Canonical list + descriptions: [`.github/SECRETS.md`](.github/SECRETS.md).
 - ❌ Real secrets in `.env.example`.
 - ❌ `NEXT_PUBLIC_API_URL` in the root `.env` for Docker — the compose file hardcodes `http://api:8080` as a build ARG.
 - ❌ Hardcoding Sentry/GlitchTip DSNs in `sentry.*.config.ts` — always read from env (`SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN`).
-- ❌ Setting `SENTRY_AUTH_TOKEN` in the container's runtime env — leaks via `docker history`. Build arg only.
+- ❌ Setting `SENTRY_AUTH_TOKEN` in the container's runtime env — leaks via `docker history`. Build arg only, and only needed if source maps are re-enabled (disabled by default — see `.github/SECRETS.md`).
 
 ## Notes for forks
 
 - Replace the `User`-only domain with the real entities. Don't reintroduce placeholder features.
 - The UI ships `lang="es"` + Spanish auth routes + Clerk `esES` localization. Switch both if the product isn't Spanish.
 - **Set `REDIS_KEY_PREFIX` to `<app-name>-`** in `apps/api/.env` (or via Dokploy env injection). Every fork MUST namespace its Redis keys so forks sharing a cluster don't collide. The ioredis `keyPrefix` option reads this env (default `web-project-template-`) AND joins it with `NODE_ENV` so dev/testing/prod are isolated automatically.
-- **Set `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`** in the host `.env` / Dokploy env. Each service points at one GlitchTip project; the `SENTRY_ENVIRONMENT` tag filters by env in the UI. Build-time `SENTRY_AUTH_TOKEN` lives in GitHub Secrets (one per env). Forks wire it by default — leaving the DSN empty disables cleanly. **Never set these in dev** (`NODE_ENV=development`): the SDK init functions have a hard gate that skips Sentry entirely in dev, regardless of whether the DSN is set.
+- **Set `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`** in the host `.env` / Dokploy env. Each service points at one GlitchTip project; the `SENTRY_ENVIRONMENT` tag filters by env in the UI. Source maps ship disabled by default (`apps/web/next.config.ts`'s `sourcemaps.disable`) — no `SENTRY_AUTH_TOKEN` needed unless a fork re-enables upload (see `.github/SECRETS.md`). Leaving the DSN empty disables cleanly. **Never set these in dev** (`NODE_ENV=development`): the SDK init functions have a hard gate that skips Sentry entirely in dev, regardless of whether the DSN is set.
 - **Set `NEXT_PUBLIC_UMAMI_SCRIPT_URL` + `NEXT_PUBLIC_UMAMI_WEBSITE_ID`** in the host `.env` / Dokploy env (single Umami site, per-env override). The `<UmamiScript />` client component gates on `NODE_ENV !== 'development'` so dev never tracks. Umami host added to CSP `script-src` + `connect-src` in `next.config.ts`.
 - Rename in one pass: `package.json` `name`, both compose `name:` + `POSTGRES_DB` + network names, `.env.example` image names, api `index.ts` service/OpenAPI titles, `docker-compose*.yml` image tags, and the `name:` fields in the release workflow matrices.
