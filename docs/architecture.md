@@ -364,7 +364,7 @@ Wired by default, off unless a DSN is set. Dev never tracks (`NODE_ENV=developme
 
 - **api:** `apps/api/src/sentry.ts` (`initSentry()` at boot; unhandled errors in `app.onError` are captured).
 - **web:** `src/instrumentation-client.ts` (browser), `sentry.server.config.ts`, `sentry.edge.config.ts`, registered by `src/instrumentation.ts`. Browser events go through the `/api/glitchtip-tunnel` route to dodge ad-blockers.
-- **Privacy:** `sendDefaultPii: false` + a shared `scrubEvent` (`apps/web/src/lib/sentry-scrub.ts`, mirrored in the api) strips request bodies, cookies, auth headers and IPs before sending.
+- **Privacy:** Sentry v11 `dataCollection` (everything off) + a shared `scrubEvent` (`apps/web/src/lib/sentry-scrub.ts`, mirrored in the api) strips request bodies, cookies, auth headers and IPs before sending.
 - **Source maps:** disabled by default; no `SENTRY_AUTH_TOKEN` needed. See `.github/SECRETS.md` to re-enable.
 
 ---

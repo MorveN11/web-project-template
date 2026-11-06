@@ -13,10 +13,10 @@ reusable components inside `app/`.
 
 Components live in one of two places:
 
-| Folder | Use when |
-| --- | --- |
-| `apps/web/src/components/<area>/` | Generic — used by ≥ 2 features OR clearly reusable across the app (chrome, layout, shadcn primitives, project-wide primitives like `<ImageUploader>`). |
-| `apps/web/src/features/<feature>/components/` | Feature-scoped — used by only one feature (e.g. `features/admin/components/product-form.tsx`). |
+| Folder                                        | Use when                                                                                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/web/src/components/<area>/`             | Generic — used by ≥ 2 features OR clearly reusable across the app (chrome, layout, shadcn primitives, project-wide primitives like `<ImageUploader>`). |
+| `apps/web/src/features/<feature>/components/` | Feature-scoped — used by only one feature (e.g. `features/admin/components/product-form.tsx`).                                                         |
 
 `app/` only contains:
 
@@ -100,10 +100,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<…
 
 ```tsx
 <section data-section-anchor className="border-b-2 border-foreground">
-  <div className="container mx-auto px-4 pt-8 pb-12 md:pt-12 md:pb-16">
-    {/* breadcrumb, h1, copy, CTA */}
-  </div>
-</section>
+  <div className="container mx-auto px-4 pt-8 pb-12 md:pt-12 md:pb-16">{/* breadcrumb, h1, copy, CTA */}</div>
+</section>;
 ```
 
 `data-section-anchor` is the target a filter sidebar may
@@ -116,9 +114,7 @@ for sections that read as a TOC.
 **Single-card landings** (account, unsubscribe, status pages):
 
 ```tsx
-<div className="container mx-auto max-w-2xl px-4 py-16">
-  {/* form / status / copy */}
-</div>
+<div className="container mx-auto max-w-2xl px-4 py-16">{/* form / status / copy */}</div>;
 ```
 
 Not `<Section>` — the editorial eyebrow/title pattern doesn't fit a

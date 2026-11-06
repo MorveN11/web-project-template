@@ -66,14 +66,14 @@ The web bundle never ships `@prisma/client`. The api shares one PrismaClient pro
 
 ## Commands
 
-| Command | What it does |
-| --- | --- |
-| `pnpm --filter @app/db generate` | Re-run after every schema change |
-| `pnpm --filter @app/db migrate:dev --name <name>` | Create + apply a migration in dev |
-| `pnpm --filter @app/db migrate:deploy` | Apply pending migrations (prod / docker-entrypoint) |
-| `pnpm --filter @app/db migrate:reset` | Drop + recreate + apply all migrations (destructive) |
-| `pnpm --filter @app/db studio` | Prisma Studio at :5555 |
-| `pnpm --filter @app/db seed` | Run `prisma/seed.ts` |
+| Command                                           | What it does                                         |
+| ------------------------------------------------- | ---------------------------------------------------- |
+| `pnpm --filter @app/db generate`                  | Re-run after every schema change                     |
+| `pnpm --filter @app/db migrate:dev --name <name>` | Create + apply a migration in dev                    |
+| `pnpm --filter @app/db migrate:deploy`            | Apply pending migrations (prod / docker-entrypoint)  |
+| `pnpm --filter @app/db migrate:reset`             | Drop + recreate + apply all migrations (destructive) |
+| `pnpm --filter @app/db studio`                    | Prisma Studio at :5555                               |
+| `pnpm --filter @app/db seed`                      | Run `prisma/seed.ts`                                 |
 
 ## Workflow — when you change the schema
 
@@ -95,11 +95,13 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5440/web_project_template?
 ## Why a shared package?
 
 **Pros**
+
 - One schema, one migration history.
 - Field renames update types across api and web automatically.
 - `pnpm db:generate` republishes types app-wide.
 
 **Cons**
+
 - Web bundle: tree-shaking handles `import type` correctly, but watch for accidental runtime imports.
 - Native binaries (`@prisma/engines`) are now per-host, not per-app. `pnpm-workspace.yaml` `onlyBuiltDependencies` allowlist covers it.
 

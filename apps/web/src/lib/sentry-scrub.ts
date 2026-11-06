@@ -3,6 +3,19 @@
 
 import type { Event } from '@sentry/nextjs';
 
+/**
+ * Sentry v11 `dataCollection` (replaces `sendDefaultPii`): collect no user
+ * info, cookies, headers, query params, HTTP bodies or DB query data.
+ */
+export const NO_PII_DATA_COLLECTION = {
+  userInfo: false,
+  cookies: false,
+  httpHeaders: false,
+  httpBodies: [],
+  urlQueryParams: false,
+  databaseQueryData: false,
+};
+
 const REDACTED_HEADERS = new Set(['authorization', 'cookie', 'x-api-key']);
 
 /**

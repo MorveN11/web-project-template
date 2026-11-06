@@ -55,11 +55,11 @@ apps/web/src/
 
 ## Route groups explained
 
-| Group | URL prefix | Auth | Role gate |
-| --- | --- | --- | --- |
-| `(public)` | none | none | none |
-| `(authenticated)/app` | `/app/*` | `getCurrentSession({ redirectIfNotFound: true })` | none |
-| `(authenticated)/app/admin` | `/app/admin/*` | inherited from parent + `role !== ADMIN` → `FALLBACK_REDIRECT_URL` | ADMIN |
+| Group                       | URL prefix     | Auth                                                               | Role gate |
+| --------------------------- | -------------- | ------------------------------------------------------------------ | --------- |
+| `(public)`                  | none           | none                                                               | none      |
+| `(authenticated)/app`       | `/app/*`       | `getCurrentSession({ redirectIfNotFound: true })`                  | none      |
+| `(authenticated)/app/admin` | `/app/admin/*` | inherited from parent + `role !== ADMIN` → `FALLBACK_REDIRECT_URL` | ADMIN     |
 
 **Next.js convention**: groups in `(parens)` don't appear in the URL. `app/(authenticated)/app/admin/page.tsx` resolves to `/app/admin`.
 
@@ -119,6 +119,7 @@ Both `getCurrentSession` and `getCurrentToken` use a zero-arg memoized core (`re
 ## Server actions pattern
 
 All server actions are `'use server'` files under `features/<name>/actions.ts`. They:
+
 1. Read auth via `getCurrentToken({ redirectIfNotFound: true })`.
 2. Hit the api with the bearer token.
 3. Wrap the result in `safeAction(...)` which converts `Result<T>` to a typed `{ ok, data } | { ok, error }` payload.
@@ -153,27 +154,27 @@ Returns `Result<T>` (typed `ok | err`). Throw-free — the wrapper catches netwo
 
 ## Env vars (validated by t3-oss at boot)
 
-| Var | Required | Default | Where validated |
-| --- | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | — | `http://localhost:4000` | client env |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✓ | — | client env |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | — | `/auth/iniciar-sesion` | client env |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | — | `/auth/registro` | client env |
-| `CLERK_SECRET_KEY` | ✓ | — | server env |
-| `NODE_ENV` | — | `development` | server env |
+| Var                                 | Required | Default                 | Where validated |
+| ----------------------------------- | -------- | ----------------------- | --------------- |
+| `NEXT_PUBLIC_API_URL`               | —        | `http://localhost:4000` | client env      |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✓        | —                       | client env      |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL`     | —        | `/auth/iniciar-sesion`  | client env      |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL`     | —        | `/auth/registro`        | client env      |
+| `CLERK_SECRET_KEY`                  | ✓        | —                       | server env      |
+| `NODE_ENV`                          | —        | `development`           | server env      |
 
 The `env/` folder has two files — `client.ts` (the `NEXT_PUBLIC_*` set) and `server.ts` (the secret set). `t3-oss` rejects the build if anything is missing.
 
 ## Commands
 
-| Command | What it does |
-| --- | --- |
-| `pnpm dev:web` | next dev (Turbopack, hot reload) |
-| `pnpm --filter @app/web typecheck` | tsc --noEmit |
-| `pnpm --filter @app/web lint` | Biome |
-| `pnpm --filter @app/web build` | next build (standalone output → `.next/standalone`) |
-| `pnpm --filter @app/web test` | Vitest (currently no tests; pass-with-no-tests) |
-| `docker compose -f docker-compose.prod.yml --env-file .env build web` | Docker image |
+| Command                                                               | What it does                                        |
+| --------------------------------------------------------------------- | --------------------------------------------------- |
+| `pnpm dev:web`                                                        | next dev (Turbopack, hot reload)                    |
+| `pnpm --filter @app/web typecheck`                                    | tsc --noEmit                                        |
+| `pnpm --filter @app/web lint`                                         | Biome                                               |
+| `pnpm --filter @app/web build`                                        | next build (standalone output → `.next/standalone`) |
+| `pnpm --filter @app/web test`                                         | Vitest (currently no tests; pass-with-no-tests)     |
+| `docker compose -f docker-compose.prod.yml --env-file .env build web` | Docker image                                        |
 
 ## `@/*` paths
 

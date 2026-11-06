@@ -141,7 +141,7 @@ These are set in `docker-compose.prod.yml` `environment:` blocks (or your deploy
 | `SEED_ENABLED` | When `true`, runs `prisma/seed.ts` at container boot (creates `admin@template.test` on empty DB). Flip to `false` in environments that don't want the seed. | `true` |
 | `SENTRY_DSN` | GlitchTip DSN for the api (errors land under `service=api, environment=<tag>`). **DEPLOYED ENVS ONLY** — the SDK has a hard `NODE_ENV !== 'development'` gate so dev cannot track even if a stray DSN leaks. | `''` |
 | `SENTRY_ENVIRONMENT` | Env tag for GlitchTip UI filtering. Set per env (`testing` for test, `production` for main). | `development` |
-| `SENTRY_RELEASE` | Release name baked into runtime Sentry events AND used by `sentry-cli sourcemaps upload --release` so uploaded maps resolve against incoming event frames. CI sets this from `needs.release.outputs.new_tag` as a build-arg; runtime sees it via the Dockerfile's `ARG` + `ENV` passthrough. Empty in local dev (events still flow, just without a release tag). | `''` |
+| `SENTRY_RELEASE` | Release name baked into runtime Sentry events so GlitchTip can link errors to a deploy. CI sets this from `needs.release.outputs.new_tag` as a build-arg; runtime sees it via the Dockerfile's `ARG` + `ENV` passthrough. Empty in local dev (events still flow, just without a release tag). | `''` |
 | `SENTRY_TRACES_SAMPLE_RATE` | Fraction of Sentry transactions to sample. | `0.01` |
 
 ### Web runtime env (read by `apps/web/src/lib/env/{client,server}.ts`)

@@ -17,10 +17,10 @@ packages/shared-types/src/
     └── user.ts               UserRole const + type + userRoleSchema
 ```
 
-| Layer | What goes here |
-| --- | --- |
-| `cross-cutting/` | Concerns used by ≥ 2 features (error envelope, pagination, …) |
-| `features/` | One file per domain DTO. Schema + inferred type live together. |
+| Layer            | What goes here                                                 |
+| ---------------- | -------------------------------------------------------------- |
+| `cross-cutting/` | Concerns used by ≥ 2 features (error envelope, pagination, …)  |
+| `features/`      | One file per domain DTO. Schema + inferred type live together. |
 
 If you're adding a new schema and you can't decide where: put it under `features/<name>.ts`. Move it to `cross-cutting/` when a second feature needs it.
 
@@ -74,11 +74,15 @@ Schemas + types only. No service classes, no fetch helpers, no Clerk SDK imports
 import { itemDtoSchema, paginationResponseSchema, UserRole } from '@app/shared-types';
 
 const listRoute = createRoute({
-  method: 'get', path: '/',
+  method: 'get',
+  path: '/',
   security: publicSecurity,
   request: { query: listItemsQuerySchema },
   responses: {
-    200: { content: { 'application/json': { schema: paginationResponseSchema(itemDtoSchema, 'Item') } }, description: 'paginated list' },
+    200: {
+      content: { 'application/json': { schema: paginationResponseSchema(itemDtoSchema, 'Item') } },
+      description: 'paginated list',
+    },
   },
 });
 ```
@@ -99,6 +103,7 @@ export async function listItems(token: string) {
 1. **Decide the file** — feature-specific → `src/features/<name>.ts`. Cross-feature → `src/cross-cutting/<name>.ts`.
 2. **Write the schema + type in the same file**. Use `.openapi('PascalName')` for the component registry.
 3. **Re-export from `src/index.ts`**:
+
    ```ts
    export { newDtoSchema, type NewDto } from './features/new-feature';
    ```

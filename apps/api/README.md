@@ -80,7 +80,7 @@ const createRouteDef = createRoute({
   },
   responses: {
     201: { content: { 'application/json': { schema: userDtoSchema } }, description: 'user created' },
-    ...authErrorResponses,         // 401 + 403 spread
+    ...authErrorResponses, // 401 + 403 spread
     409: conflictResponse[409],
   },
 });
@@ -106,12 +106,12 @@ The route is **the only file that knows about HTTP**. Service and repository are
 
 ### 4. Auth — layered, never duplicated
 
-| Layer | Lives in | Purpose |
-| --- | --- | --- |
-| **Mount gate** | `src/index.ts` — `app.use(...)` | request_id, access log, CORS, attachUserLogger |
+| Layer                | Lives in                                       | Purpose                                                             |
+| -------------------- | ---------------------------------------------- | ------------------------------------------------------------------- |
+| **Mount gate**       | `src/index.ts` — `app.use(...)`                | request_id, access log, CORS, attachUserLogger                      |
 | **JWT verification** | `src/auth/clerk.ts` — `requireAuth` middleware | Verify Bearer token via `@clerk/backend`; sets `c.set('auth', ...)` |
-| **Role enforcement** | `src/auth/role.ts` — `requireRole(roles)` | Throws 403 if `auth.role` not in allowed list |
-| **Result mapping** | `src/core/handle.ts` — `handleResult` | Converts Result<T> to Response; respects the status from `AppError` |
+| **Role enforcement** | `src/auth/role.ts` — `requireRole(roles)`      | Throws 403 if `auth.role` not in allowed list                       |
+| **Result mapping**   | `src/core/handle.ts` — `handleResult`          | Converts Result<T> to Response; respects the status from `AppError` |
 
 Apply the middleware chain in `features/<name>/routes.ts`:
 
@@ -162,30 +162,30 @@ Every error response uses the same shape (matches `@app/shared-types` `apiErrorS
 
 ## Commands
 
-| Command | What it does |
-| --- | --- |
-| `pnpm --filter @app/api dev` | Watch + reload + load `.env` |
-| `pnpm --filter @app/api typecheck` | tsc --noEmit against `tsconfig.build.json` |
-| `pnpm --filter @app/api lint` | Biome |
-| `pnpm --filter @app/api build` | tsc → `dist/` |
-| `pnpm --filter @app/api test` | Vitest (currently no tests; pass-with-no-tests) |
-| `docker compose -f docker-compose.prod.yml --env-file .env build api` | Docker image |
+| Command                                                               | What it does                                    |
+| --------------------------------------------------------------------- | ----------------------------------------------- |
+| `pnpm --filter @app/api dev`                                          | Watch + reload + load `.env`                    |
+| `pnpm --filter @app/api typecheck`                                    | tsc --noEmit against `tsconfig.build.json`      |
+| `pnpm --filter @app/api lint`                                         | Biome                                           |
+| `pnpm --filter @app/api build`                                        | tsc → `dist/`                                   |
+| `pnpm --filter @app/api test`                                         | Vitest (currently no tests; pass-with-no-tests) |
+| `docker compose -f docker-compose.prod.yml --env-file .env build api` | Docker image                                    |
 
 ## Env vars (validated at boot — see `src/env.ts`)
 
-| Var | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `NODE_ENV` | — | `development` | drives logger verbosity + dev-only mounts |
-| `PORT` | — | `4000` | bind port (container uses `8080` via env override) |
-| `LOG_LEVEL` | — | `info` | pino level |
-| `LOG_QUERIES` | — | `false` | Prisma query event logging |
-| `DATABASE_URL` | ✓ | — | Postgres connection string |
-| `CORS_ORIGIN` | — | `http://localhost:3000` | comma-separated allowed origins |
-| `CLERK_SECRET_KEY` | ✓ | — | Clerk service-role key (BAPI + JWT verify) |
-| `CLERK_PUBLISHABLE_KEY` | — | `""` | Clerk pk |
-| `CLERK_AUTHORIZED_PARTIES` | — | `http://localhost:3000` | comma-separated allowed `azp` origins for SDK-minted JWTs |
-| `CLERK_WEBHOOK_SIGNING_SECRET` | ✓ | `whsec_…` | Svix signing secret from Clerk dashboard |
-| `SEED_ENABLED` | — | `false` | whether the entrypoint runs `prisma db seed` after migrations |
+| Var                            | Required | Default                 | Purpose                                                       |
+| ------------------------------ | -------- | ----------------------- | ------------------------------------------------------------- |
+| `NODE_ENV`                     | —        | `development`           | drives logger verbosity + dev-only mounts                     |
+| `PORT`                         | —        | `4000`                  | bind port (container uses `8080` via env override)            |
+| `LOG_LEVEL`                    | —        | `info`                  | pino level                                                    |
+| `LOG_QUERIES`                  | —        | `false`                 | Prisma query event logging                                    |
+| `DATABASE_URL`                 | ✓        | —                       | Postgres connection string                                    |
+| `CORS_ORIGIN`                  | —        | `http://localhost:3000` | comma-separated allowed origins                               |
+| `CLERK_SECRET_KEY`             | ✓        | —                       | Clerk service-role key (BAPI + JWT verify)                    |
+| `CLERK_PUBLISHABLE_KEY`        | —        | `""`                    | Clerk pk                                                      |
+| `CLERK_AUTHORIZED_PARTIES`     | —        | `http://localhost:3000` | comma-separated allowed `azp` origins for SDK-minted JWTs     |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | ✓        | `whsec_…`               | Svix signing secret from Clerk dashboard                      |
+| `SEED_ENABLED`                 | —        | `false`                 | whether the entrypoint runs `prisma db seed` after migrations |
 
 Boots fail-fast if any required var is missing or malformed (`process.exit(1)` after a single stderr dump).
 
@@ -201,6 +201,7 @@ Entry point: `apps/api/docker-entrypoint.sh` runs `pnpm db:migrate:deploy` (then
 2. **Add Prisma model** if needed (in `packages/db/prisma/schema.prisma` → `pnpm db:migrate:dev`).
 3. **Add a zod request schema** in `packages/shared-types/src/features/<name>.ts` — single source of truth, consumed by both apps.
 4. **Wire the route**:
+
    ```ts
    const public = new OpenAPIHono();
    public.openapi(listRoute, async (c) => handleResult(await service.list(c.req.valid('query')), c));

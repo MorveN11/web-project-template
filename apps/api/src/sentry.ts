@@ -33,7 +33,7 @@ const REDACTED_HEADERS = new Set(['authorization', 'cookie', 'x-api-key']);
 
 /**
  * Strips request body, cookies, sensitive headers and IP from an
- * event/transaction before it's sent. `sendDefaultPii: false` already
+ * event/transaction before it's sent. `dataCollection` already
  * keeps most of this out, but request data can still carry it when an
  * integration captures it explicitly — belt and suspenders.
  */
@@ -100,19 +100,23 @@ export function initSentry(): void {
     // override this with a sha tag (set SENTRY_RELEASE in env) so the
     // GlitchTip UI can link errors to deploys.
     release: env.SENTRY_RELEASE,
-    // Sentry's @sentry/node logger integration would intercept pino's
-    // emit and double-log every event through Sentry. We already
-    // mirror at the call site in `onError`, so leave the SDK's
-    // auto-logging off. Forks that want Sentry logs wire their own
-    // integration on top.
-    enableLogs: false,
-    // Don't let the SDK auto-attach PII (user IP, cookies, headers) —
-    // `scrubEvent` below is the single place that decides what's safe
-    // to forward.
-    sendDefaultPii: false,
-    integrations: [Sentry.httpIntegration({ maxIncomingRequestBodySize: 'none' })],
+    // pino is not wired into Sentry: we mirror errors at the call site in
+    // `onError`, so logs are not forwarded. Forks that want Sentry logs
+    // add `Sentry.pinoIntegration()` on top.
+    //
+    // Don't let the SDK auto-attach PII (user info, cookies, headers,
+    // bodies, query params, DB data) — `scrubEvent` below is the last
+    // line of defence before an event leaves the process.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      databaseQueryData: false,
+    },
+    integrations: [Sentry.httpIntegration({ maxRequestBodySize: 'none' })],
     beforeSend: scrubEvent,
-    beforeSendTransaction: scrubEvent,
   });
 
   Sentry.setTags({
@@ -133,12 +137,12 @@ export function initSentry(): void {
   );
 
   if (env.SENTRY_RELEASE === '') {
-    // No release tag → uploaded sourcemaps won't match incoming events.
+    // No release tag → events can't be linked to a deploy.
     // Surface it so the next deploy can be diagnosed; not a hard error
-    // (boots still work, events still flow — just without frame mapping).
+    // (boots still work, events still flow — just without a release tag).
     logger.warn(
       { reason: 'release-empty' },
-      'sentry: SENTRY_RELEASE is empty — uploaded sourcemaps will not resolve incoming events',
+      'sentry: SENTRY_RELEASE is empty — events will not be tagged with a release',
     );
   }
 }

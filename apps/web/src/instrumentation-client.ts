@@ -10,7 +10,7 @@
 
 import * as Sentry from '@sentry/nextjs';
 import { env as clientEnv } from '@/lib/env/client';
-import { scrubEvent } from '@/lib/sentry-scrub';
+import { NO_PII_DATA_COLLECTION, scrubEvent } from '@/lib/sentry-scrub';
 
 if (clientEnv.NEXT_PUBLIC_SENTRY_DSN) {
   try {
@@ -21,7 +21,7 @@ if (clientEnv.NEXT_PUBLIC_SENTRY_DSN) {
       // `tunnel` is injected by `withSentryConfig`'s `tunnelRoute` option
       // at build time — no need to set it manually here.
       release: clientEnv.NEXT_PUBLIC_SENTRY_RELEASE,
-      sendDefaultPii: false,
+      dataCollection: NO_PII_DATA_COLLECTION,
       beforeSend: scrubEvent,
     });
     const dsnHost = new URL(clientEnv.NEXT_PUBLIC_SENTRY_DSN).host;
