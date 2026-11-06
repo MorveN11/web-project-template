@@ -24,10 +24,10 @@
     "@app/db": "workspace:*",
     "@app/shared-types": "workspace:*",
     "@clerk/backend": "^3.16.4",
-    "@hono/node-server": "^2.1.0",
+    "@hono/node-server": "^2.1.6",
     "@scalar/hono-api-reference": "^0.11.14",
     "@sentry/node": "^9.42.0",
-    "hono": "^4.13.2",
+    "hono": "^4.13.16",
     "hono-rate-limiter": "^0.5.3",
     "ioredis": "^6.0.0",
     "pino": "^10.3.1"
