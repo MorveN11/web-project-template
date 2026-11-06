@@ -37,6 +37,8 @@ stack decisions every time.
 | [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md) | Code conventions for AI coding agents and humans alike |
 | [`.github/SECRETS.md`](.github/SECRETS.md) | Every GitHub secret/variable the release pipeline reads |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Gitflow, commits, PR process |
+| [`docs/github-setup.md`](docs/github-setup.md) | One-time GitHub repo setup: metadata, branch protection, security, labels |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release history |
 | [`SECURITY.md`](SECURITY.md) | How to report a vulnerability |
 
 Contributing? See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -448,29 +450,33 @@ feature/<name> ─┐
 fix/<name>     ─┤  ← your work, branches off dev
 chore/<name>   ─┤
                │
-               ▼ PR (review)
-              test   ← features accumulate here, validates in testing
+               ▼ PR (review + CI)
+              dev    ← day-to-day integration, features accumulate here
                │
-               ▼ periodic release PR (test → main)
+               ▼ promotion PR (dev → test)
+              test   ← validates in the testing environment
+               │
+               ▼ release PR (test → main)
               main   ← every push triggers a stable release
                │
                ▼ post-release sync (main → dev)
-              dev    ← dev catches up; next cycle starts here
+              dev    ← catches up; next cycle continues
 ```
 
 | Branch | Role | Push trigger |
 | --- | --- | --- |
-| `dev` | Day-to-day integration. Features fork from here. | — |
-| `test` | Testing. Features PR in here. Validates in the testing environment. | every push → `release-test.yml` (test-channel prerelease) |
+| `dev` | Day-to-day integration. Features fork from here and PR back into it. | — |
+| `test` | Testing. Receives `dev → test` promotion PRs. Validates in the testing environment. | every push → `release-test.yml` (test-channel prerelease) |
 | `main` | Production. Stable-channel releases. | every push → `release-prod.yml` (stable release) |
 
 #### The cycle in steps
 
 1. **Branch from `dev`.** `git checkout -b feature/my-change dev`.
-2. **PR into `test`.** Open the PR against `test`. Reviewers approve. CI must pass.
-3. **Merge → `test`.** Squash + delete branch. The change is now in the testing environment.
-4. **Periodic release to `main`.** When `test` is ready to ship, open a PR `test → main`. CI runs again. On merge, `release-prod.yml` publishes `:latest` + `:<semver>` images and curls the prod Dokploy webhook.
-5. **Sync `main` back to `dev`.** After step 4, open (or auto-create) a PR `main → dev` to keep the working branch current. This catches the release commits, hotfixes that landed directly on `main`, and any merge commits.
+2. **PR into `dev`.** Open the PR against `dev`. Reviewers approve. CI must pass.
+3. **Merge → `dev`.** Squash + delete branch. The change is now in the integration branch.
+4. **Promote `dev → test`.** When `dev` is ready for QA, open a PR `dev → test`. On merge, `release-test.yml` deploys the testing environment.
+5. **Periodic release to `main`.** When `test` is ready to ship, open a PR `test → main`. CI runs again. On merge, `release-prod.yml` publishes `:latest` + `:<semver>` images and curls the prod Dokploy webhook.
+6. **Sync `main` back to `dev`.** After step 5, open (or auto-create) a PR `main → dev` to keep the working branch current. This catches the release commits, hotfixes that landed directly on `main`, and any merge commits.
 
 A `feature/*` branch never opens a PR to `main` directly. Hotfixes on `main` get a follow-up `main → dev` sync to land them in the integration branch.
 

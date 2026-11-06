@@ -29,13 +29,15 @@ jobs:
         with:
           # Use the action's default subjectPattern (covers Conventional
           # Commits edge cases better than a hand-rolled regex). Defaults:
-          #   - requireScope: true (scope required)
+          #   - requireScope: false (set explicitly below)
           #   - subjectPattern: a built-in regex
           # If you need a custom regex, override `subjectPattern` here.
           # `validateSingleCommit: false` makes the action validate the
           # PR title (and the range of commits in the PR), not a single
           # commit subject.
           validateSingleCommit: false
+          # Scope is optional: `chore: sync main into dev` is valid.
+          requireScope: false
 
   commit-messages:
     runs-on: ubuntu-latest

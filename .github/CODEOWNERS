@@ -14,8 +14,9 @@
 #   * Team members           → cannot bypass. Their PRs must collect the
 #                                listed owner's review before merge.
 #
-# SUBSTITUTION: replace `@<org>/<team>` placeholders with the actual
-# GitHub team handles for your fork / org (Settings → Teams).
+# SUBSTITUTION: forks replace `@MorveN11` with their own user or team
+# handles (e.g. `@your-org/maintainers`). Unknown owners are ignored
+# by GitHub and flagged as errors in the CODEOWNERS file view.
 
 # Default: no global owner. Most paths have no CODEOWNERS requirement,
 # so non-listed paths merge without a forced reviewer (admins do).
@@ -23,19 +24,18 @@
 # ─── CI/CD & release infra ──────────────────────────────────────────
 # Touching workflows or release config is risky — require maintainer
 # sign-off on every PR.
-.github/                   @<org>/maintainers
-/release.config.mjs         @<org>/maintainers
-/commitlint.config.js       @<org>/maintainers
+.github/                   @MorveN11
+/release.config.mjs         @MorveN11
 
 # ─── Backend ───────────────────────────────────────────────────────
 # API code and the shared Prisma schema need backend-review.
-/apps/api/                  @<org>/backend-reviewers
-/packages/db/               @<org>/backend-reviewers
+/apps/api/                  @MorveN11
+/packages/db/               @MorveN11
 
 # ─── Frontend ──────────────────────────────────────────────────────
 # Next.js / shadcn code needs frontend-review.
-/apps/web/                  @<org>/frontend-reviewers
+/apps/web/                  @MorveN11
 
 # ─── Shared types ──────────────────────────────────────────────────
 # Both backend and frontend consume this package — list both reviewers.
-/packages/shared-types/     @<org>/backend-reviewers @<org>/frontend-reviewers
+/packages/shared-types/     @MorveN11

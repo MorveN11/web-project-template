@@ -1,6 +1,5 @@
 {
   "name": "web-project-template",
-  "private": true,
   "version": "1.0.0",
   "description": "Minimal web project template. Hono + Prisma + Postgres API, Next.js + shadcn + Clerk web, pnpm workspaces. Extend with features as the project grows.",
   "license": "MIT",

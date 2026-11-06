@@ -18,14 +18,12 @@ pnpm dev                # api on :4000, web on :3000
 
 # Day-to-day
 git checkout dev && git pull
-git checkout -b feature/my-change dev
-# PR feature → test (review)
-# periodic release test → main
-# sync main → dev
+git checkout -b feature/my-change
 # ...edit, commit with conventional commits, push
-gh pr create --base test
-# review + merge → test branch deploys to testing via Dokploy
-# promote test → main → prod deploy
+gh pr create --base dev
+# review + merge → dev
+# promote dev → test (testing deploy), then test → main (prod deploy)
+# finally sync main → dev
 ```
 
 ---
@@ -98,7 +96,7 @@ In **Settings → General → Pull Requests**, configure the merge strategy so C
 | --- | --- | --- |
 | **Allow merge commits** | OFF | Merging produces "Merge branch 'X' into Y" commits. These fail `gsactions/commit-message-checker`'s regex (no `type(scope):` prefix). Disabling them keeps the history Conventional-Commits-pure. |
 | **Allow squash merging** | ON (default commit message = PR title) | Squash collapses the PR into a single commit whose subject is the PR title — which is already validated by `amannn/action-semantic-pull-request`. |
-| **Allow rebase merging** | ON (optional) | Linear history, no merge commit. |
+| **Allow rebase merging** | ON (required) | Use it for promotion PRs (`dev → test`, `test → main`) so each `feat`/`fix` commit reaches semantic-release instead of being squashed into one commit. Squash is for feature PRs only. |
 | **Always suggest updating pull request branches** | ON | Keeps feature branches current. |
 | **Automatically delete head branches** | ON | Cleanup after merge. |
 
@@ -108,17 +106,17 @@ The workflow `check-pull-request.yml` uses `gsactions/commit-message-checker@v2`
 
 ## 2. Gitflow
 
-We use a 3-tier GitFlow. `dev` is the day-to-day integration branch — features fork from it, then PR into `test`, then periodic release to `main`, then `main` syncs back to `dev`.
+We use a 3-tier GitFlow. `dev` is the day-to-day integration branch — features fork from it and PR back into it, `dev` is promoted to `test` for QA, `test` is released to `main`, then `main` syncs back to `dev`.
 
 ```
 feature/<name>  ─┐
 fix/<name>      ─┤  ← your work
 chore/<name>    ─┤
                 │
-                ▼ fork
+                ▼ fork + PR (review + CI)
               dev   ──── day-to-day integration, no push trigger
                 │
-                ▼ PR (review)
+                ▼ promotion PR (dev → test)
               test   ──── push triggers release-test.yml (test channel release + Dokploy)
                 │
                 ▼ release PR (test → main)
@@ -133,8 +131,8 @@ chore/<name>    ─┤
 | Branch | Role | Push trigger | Locked? |
 | --- | --- | --- | --- |
 | `main` | Production. Stable-channel releases. | `release-prod.yml` | yes — merge only via PR from `test` |
-| `test` | Testing. Prerelease-channel releases. | `release-test.yml` | yes — merge only via PR from feature branches or from `main` (sync) |
-| `dev` | Day-to-day integration. Features fork from here. | — | no — direct push allowed for trivial sync merges |
+| `test` | Testing. Prerelease-channel releases. | `release-test.yml` | yes — merge only via PR from `dev` |
+| `dev` | Day-to-day integration. Features fork from here and PR back into it. | — | yes — merge only via PR (features, dependabot, `main` sync) |
 | `feature/*`, `fix/*`, `chore/*`, etc. | Per-change work. | — | no — short-lived |
 
 ### Branch naming
@@ -172,12 +170,13 @@ docs: document env vars
 The cycle, in order:
 
 1. **Branch from `dev`.** `git checkout dev && git pull && git checkout -b feature/my-change`.
-2. **Open the PR against `test`.** Fill the PR template (Type of change, breaking changes if any, testing notes).
+2. **Open the PR against `dev`.** Fill the PR template (Type of change, breaking changes if any, testing notes).
 3. **CI runs.** `check-branch`, `check-pull-request`, `ci` must all pass. CODEOWNERS auto-requests review from the appropriate team (`.github/CODEOWNERS`).
 4. **Review.** Maintainers / team-reviewers approve.
-5. **Merge into `test`.** Squash + delete branch. `release-test.yml` runs on the push to `test` and deploys to testing via Dokploy.
-6. **Periodic release: `test` → `main`.** When `test` is ready to ship, open a PR `test → main`. CI runs again. Merge to trigger `release-prod.yml` (publishes `:latest` + `:<semver>` images + curls the prod Dokploy webhook).
-7. **Sync `main` → `dev`.** After step 6, open (or auto-create) a PR `main → dev`. This catches release commits, hotfixes that landed directly on `main`, and any merge commits.
+5. **Merge into `dev`.** Squash + delete branch. No deploy happens yet.
+6. **Promote `dev` → `test`.** Open a PR `dev → test`. On merge, `release-test.yml` deploys to testing via Dokploy.
+7. **Periodic release: `test` → `main`.** When `test` is ready to ship, open a PR `test → main`. CI runs again. Merge to trigger `release-prod.yml` (publishes `:latest` + `:<semver>` images + curls the prod Dokploy webhook).
+8. **Sync `main` → `dev`.** After step 7, open (or auto-create) a PR `main → dev`. This catches release commits, hotfixes that landed directly on `main`, and any merge commits.
 
 A `feature/*` branch never opens a PR to `main` directly. Hotfixes on `main` always get a follow-up `main → dev` sync PR.
 

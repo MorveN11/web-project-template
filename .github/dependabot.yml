@@ -2,6 +2,9 @@
 # a MAP (each key is the group name) rather than a list of objects.
 # See https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
+# Commit-message prefixes keep Dependabot PRs valid for the Conventional
+# Commits checks in check-pull-request.yml.
+#
 # All PRs target `dev` per the repo's 3-tier gitflow:
 #   feature → dev → test → main → dev
 # Dependabot should follow the same path: PRs land in dev, get reviewed
@@ -19,10 +22,12 @@ updates:
       day: "monday"
       time: "06:00"
     labels: ["dependencies"]
+    commit-message:
+      prefix: "chore(deps)"
     groups:
       dev-dependencies:
         dependency-type: "development"
-    open-pull-orders-limit: 10
+    open-pull-requests-limit: 10
 
   # ── apps/api deps ────────────────────────────────────────────────
   - package-ecosystem: "npm"
@@ -31,6 +36,8 @@ updates:
     schedule:
       interval: "weekly"
     labels: ["dependencies", "api"]
+    commit-message:
+      prefix: "chore(api-deps)"
     open-pull-requests-limit: 10
     groups:
       hono-packages:
@@ -47,6 +54,8 @@ updates:
     schedule:
       interval: "weekly"
     labels: ["dependencies", "web"]
+    commit-message:
+      prefix: "chore(web-deps)"
     open-pull-requests-limit: 10
     groups:
       react-packages:
@@ -63,4 +72,6 @@ updates:
     schedule:
       interval: "weekly"
     labels: ["ci"]
+    commit-message:
+      prefix: "ci(deps)"
     open-pull-requests-limit: 5
