@@ -1,4 +1,0 @@
-# Force LF line endings for all text files across the monorepo so the
-# Docker build contexts and CI runners (always Linux) get consistent
-# content regardless of the developer's host OS.
-* text=auto eol=lf
