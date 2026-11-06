@@ -25,8 +25,8 @@
 // ioredis prepends the joined prefix transparently.
 
 import Redis from 'ioredis';
-import { env } from '../env';
-import { logger } from '../logger';
+import { env } from '../../env';
+import { logger } from '../../logger';
 
 let client: Redis | null = null;
 let connectPromise: Promise<Redis | null> | null = null;

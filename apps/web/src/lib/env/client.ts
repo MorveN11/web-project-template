@@ -38,6 +38,17 @@ export const env = createEnv({
     // Sentry release tag (git SHA / version). Optional — leave undefined
     // if not set; Sentry still works.
     NEXT_PUBLIC_SENTRY_RELEASE: z.string().optional(),
+    // Per-deploy GlitchTip project slug — forwarded to `withSentryConfig`
+    // so source maps resolve against the right project. Empty = skip
+    // uploading (DSN-keyed auto-resolution remains as fallback).
+    NEXT_PUBLIC_SENTRY_PROJECT: z.string().optional(),
+    // GlitchTip base URL. Empty = SDK default (Sentry).
+    NEXT_PUBLIC_SENTRY_URL: z.url().optional(),
+    // Public storage origin (CDN hostname) — used by Next `<Image>`
+    // `remotePatterns` to allow optimizer fetches against the bucket's
+    // custom domain. Empty = no pattern registered, falls back to
+    // runtime proxy through the api.
+    NEXT_PUBLIC_R2_PUBLIC_BASE_URL: z.url().optional(),
   },
   runtimeEnv: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
@@ -52,6 +63,9 @@ export const env = createEnv({
     NEXT_PUBLIC_UMAMI_SCRIPT_URL: process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL,
     NEXT_PUBLIC_UMAMI_WEBSITE_ID: process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID,
     NEXT_PUBLIC_SENTRY_RELEASE: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
+    NEXT_PUBLIC_SENTRY_PROJECT: process.env.NEXT_PUBLIC_SENTRY_PROJECT,
+    NEXT_PUBLIC_SENTRY_URL: process.env.NEXT_PUBLIC_SENTRY_URL,
+    NEXT_PUBLIC_R2_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL,
   },
   emptyStringAsUndefined: true,
 });

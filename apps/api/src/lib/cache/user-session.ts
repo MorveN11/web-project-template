@@ -12,8 +12,8 @@
 // `user.deleted` so external edits propagate within milliseconds
 // instead of waiting out the 30s TTL.
 
-import type { UserDto } from '../features/users/mappers';
-import { logger } from '../logger';
+import type { UserDto } from '../../features/users/mappers';
+import { logger } from '../../logger';
 import { redisDel, redisGet, redisSet } from './redis';
 
 const USER_SESSION_TTL_SECONDS = 30;

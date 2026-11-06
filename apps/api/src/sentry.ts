@@ -27,6 +27,31 @@ import { logger } from './logger';
 const SERVICE_NAME = 'web-project-template-api';
 const APP_NAME = 'web-project-template';
 
+// Headers stripped from every event before it leaves the process —
+// GlitchTip never needs raw auth material to be useful.
+const REDACTED_HEADERS = new Set(['authorization', 'cookie', 'x-api-key']);
+
+/**
+ * Strips request body, cookies, sensitive headers and IP from an
+ * event/transaction before it's sent. `sendDefaultPii: false` already
+ * keeps most of this out, but request data can still carry it when an
+ * integration captures it explicitly — belt and suspenders.
+ */
+function scrubEvent<T extends Sentry.Event>(event: T): T {
+  const request = event.request;
+  if (request) {
+    delete request.data;
+    delete request.cookies;
+    if (request.headers) {
+      for (const key of Object.keys(request.headers)) {
+        if (REDACTED_HEADERS.has(key.toLowerCase())) delete request.headers[key];
+      }
+    }
+  }
+  if (event.user) delete event.user.ip_address;
+  return event;
+}
+
 let initialised = false;
 
 /**
@@ -75,6 +100,19 @@ export function initSentry(): void {
     // override this with a sha tag (set SENTRY_RELEASE in env) so the
     // GlitchTip UI can link errors to deploys.
     release: env.SENTRY_RELEASE,
+    // Sentry's @sentry/node logger integration would intercept pino's
+    // emit and double-log every event through Sentry. We already
+    // mirror at the call site in `onError`, so leave the SDK's
+    // auto-logging off. Forks that want Sentry logs wire their own
+    // integration on top.
+    enableLogs: false,
+    // Don't let the SDK auto-attach PII (user IP, cookies, headers) —
+    // `scrubEvent` below is the single place that decides what's safe
+    // to forward.
+    sendDefaultPii: false,
+    integrations: [Sentry.httpIntegration({ maxIncomingRequestBodySize: 'none' })],
+    beforeSend: scrubEvent,
+    beforeSendTransaction: scrubEvent,
   });
 
   Sentry.setTags({
@@ -103,11 +141,6 @@ export function initSentry(): void {
       'sentry: SENTRY_RELEASE is empty — uploaded sourcemaps will not resolve incoming events',
     );
   }
-
-  // Boot heartbeat — proves the whole pipeline (init → upload → ingest)
-  // works end-to-end. Filter by message text in GlitchTip UI.
-  // Remove once you've confirmed events arrive.
-  Sentry.captureMessage('sentry-boot-probe', { level: 'info', tags: { probe: 'boot' } });
 }
 
 /**

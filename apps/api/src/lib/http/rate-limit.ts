@@ -11,7 +11,7 @@
 
 import type { Context } from 'hono';
 import { rateLimiter } from 'hono-rate-limiter';
-import { env } from './env';
+import { env } from '../../env';
 
 /**
  * Resolve the client IP from the request. Behind Dokploy / a reverse

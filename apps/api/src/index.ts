@@ -8,18 +8,19 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
+import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import { timing } from 'hono/timing';
-import { attachUserLogger } from './auth/clerk';
-import { attachPrismaLogging } from './db/prisma-logging';
 import { devRoutes } from './dev';
 import { env } from './env';
 import { healthRoutes } from './features/health';
 import { userRoutes } from './features/users';
 import { handleClerkWebhook } from './features/webhooks';
+import { attachUserLogger } from './lib/auth/clerk';
+import { attachPrismaLogging } from './lib/db/prisma-logging';
+import { webhookAndDevRateLimiter } from './lib/http';
+import { bearerSecurity } from './lib/openapi/security';
 import { logger, withRequest } from './logger';
-import { bearerSecurity } from './openapi/security';
-import { webhookAndDevRateLimiter } from './rate-limit';
 import { initSentry, isSentryEnabled, Sentry } from './sentry';
 // Side-effect import: registers Hono context-variable augmentation
 // (`log`, `request_id`). Required for typed `c.set` / `c.get` calls below.
@@ -200,6 +201,22 @@ app.route('/users', userRoutes);
 
 app.notFound((c) => c.json({ error: { code: 'not_found', message: 'no route' } }, 404));
 
+/// Client-safe Spanish copy for framework-thrown `HTTPException`s.
+/// Keyed on status so no library message leaks to the browser.
+/// Forks can override this dict (or set it via env) if their
+/// audience needs another language — the keys (status codes) are
+/// stable.
+const HTTP_ERROR_COPY: Record<number, { code: string; message: string }> = {
+  400: { code: 'bad_request', message: 'Solicitud inválida.' },
+  401: { code: 'unauthorized', message: 'No autorizado.' },
+  403: { code: 'forbidden', message: 'Acceso denegado.' },
+  404: { code: 'not_found', message: 'Recurso no encontrado.' },
+  405: { code: 'method_not_allowed', message: 'Método no permitido.' },
+  413: { code: 'payload_too_large', message: 'El archivo enviado es demasiado grande.' },
+  415: { code: 'unsupported_media_type', message: 'Tipo de contenido no soportado.' },
+  429: { code: 'rate_limited', message: 'Demasiadas solicitudes. Intenta de nuevo en un momento.' },
+};
+
 app.onError((err, c) => {
   const log = c.get('log') as ReturnType<typeof withRequest> | undefined;
   // Auth middleware throws { status, code, message } typed errors.
@@ -207,6 +224,16 @@ app.onError((err, c) => {
     const e = err as { status: number; code: string; message: string };
     log?.warn({ status: e.status, code: e.code, message: e.message }, 'http error');
     return c.json({ error: { code: e.code, message: e.message } }, e.status as 400);
+  }
+  // Hono middleware (bodyLimit, etc.) throws `HTTPException`: it has a
+  // `status` but no `code`, so it would otherwise fall through as a 500.
+  // Copy comes from the dict keyed on status — `err.message` is a
+  // framework/library string and never reaches the client. 5xx keeps
+  // falling through to the unhandled branch so Sentry still sees it.
+  if (err instanceof HTTPException && err.status < 500) {
+    const copy = HTTP_ERROR_COPY[err.status] ?? { code: 'bad_request', message: 'Solicitud rechazada.' };
+    log?.warn({ status: err.status, original: err.message, ...copy }, 'http error');
+    return c.json({ error: copy }, err.status);
   }
   log?.error({ err }, 'unhandled error');
   // Mirror to Sentry so the aggregator sees unhandled 5xx. Skipped

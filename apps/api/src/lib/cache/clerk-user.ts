@@ -17,8 +17,8 @@
 // circuits the TTL — call it after mutating role.
 
 import { createClerkClient, type User } from '@clerk/backend';
-import { env } from '../env';
-import { logger } from '../logger';
+import { env } from '../../env';
+import { logger } from '../../logger';
 import { redisDel, redisGet, redisSet } from './redis';
 
 const CLERK_USER_TTL_MS = 30_000;

@@ -31,6 +31,7 @@
 
 import { UserRole } from '@app/shared-types';
 import { useAuth, useUser } from '@clerk/nextjs';
+import { setUser as setSentryUser } from '@sentry/nextjs';
 import { cache, createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 import { authService } from '@/features/auth/services/auth.service';
 import type { UserSession } from '@/features/auth/types';
@@ -69,6 +70,20 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, user } = useUser();
   const { getToken } = useAuth();
   const [session, setSession] = useState<UserSession | null>(null);
+
+  // Tag Sentry events with the signed-in Clerk user id so GlitchTip
+  // can pivot errors by user. Fires on sign-in / sign-out even when
+  // the api session fetch hasn't completed yet — `user.id` is the
+  // key identifier for events, the api session is the role data.
+  // No-op when the Sentry SDK isn't initialised (DSN empty in dev).
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (isSignedIn && user) {
+      setSentryUser({ id: user.id });
+    } else {
+      setSentryUser(null);
+    }
+  }, [isLoaded, isSignedIn, user]);
 
   useEffect(() => {
     if (!isLoaded) return;

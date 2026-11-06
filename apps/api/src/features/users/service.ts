@@ -13,11 +13,11 @@
 
 import { UserRole } from '@app/shared-types';
 import { createClerkClient } from '@clerk/backend';
-import type { ClerkAuthContext } from '@/auth/clerk';
-import { invalidateClerkUserCached } from '@/cache/clerk-user';
-import { getUserSessionCached, invalidateUserSessionCached, setUserSessionCached } from '@/cache/user-session';
 import { err, errConflict, errForbidden, errInternal, ok, type Result } from '@/core/result';
 import { env } from '@/env';
+import type { ClerkAuthContext } from '@/lib/auth/clerk';
+import { invalidateClerkUserCached } from '@/lib/cache/clerk-user';
+import { getUserSessionCached, invalidateUserSessionCached, setUserSessionCached } from '@/lib/cache/user-session';
 import { logger } from '@/logger';
 import { toUserDto, type UserDto } from './mappers';
 import type { UserRepository } from './repository';

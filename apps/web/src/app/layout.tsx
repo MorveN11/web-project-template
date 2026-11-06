@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from 'next';
 import { Fira_Code, Inter, Merriweather } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { ChromeGate } from '@/components/layout/chrome-gate';
 import { Navbar } from '@/components/layout/navbar';
+import { Providers } from '@/components/providers';
 import { ThemeProvider } from '@/components/theme-provider';
 import { UmamiScript } from '@/components/umami-script';
 import { RoleProvider } from '@/features/auth';
 import { BRAND } from '@/lib/contact';
 import { env } from '@/lib/env/client';
 import { cn } from '@/lib/utils';
-import { Providers } from './providers';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
@@ -103,10 +104,12 @@ export default function RootLayout({ children }: Props) {
                 via Clerk hooks — keeps the layout free of `headers()`
                 so public routes can prerender. */}
             <RoleProvider>
-              <Navbar />
-              <main id="contenido" className="flex flex-1 flex-col">
-                {children}
-              </main>
+              <ChromeGate>
+                <Navbar />
+                <main id="contenido" className="flex flex-1 flex-col">
+                  {children}
+                </main>
+              </ChromeGate>
             </RoleProvider>
           </Providers>
         </ThemeProvider>

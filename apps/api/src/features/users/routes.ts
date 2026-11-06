@@ -15,11 +15,11 @@
 import { database } from '@app/db';
 import { type UserRole, UserRole as UserRoleConst, userRoleSchema } from '@app/shared-types';
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import { getAuth, requireAuth } from '@/auth/clerk';
-import { requireRole } from '@/auth/role';
 import { handleResult } from '@/core/handle';
-import { authErrorResponses, conflictResponse } from '@/openapi/responses';
-import { bearerSecurity } from '@/openapi/security';
+import { getAuth, requireAuth } from '@/lib/auth/clerk';
+import { requireRole } from '@/lib/auth/role';
+import { authErrorResponses, conflictResponse } from '@/lib/openapi/responses';
+import { bearerSecurity } from '@/lib/openapi/security';
 import type { UserDto } from './mappers';
 import { UserRepository } from './repository';
 import { createUserBodySchema } from './schemas';

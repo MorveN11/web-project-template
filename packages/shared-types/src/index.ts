@@ -15,9 +15,17 @@
 // Public surface (stable):
 //   apiErrorSchema, ApiErrorBody
 //   paginationResponseSchema(), PaginationResponse<T>
+//   DEFAULT_PAGE_SIZE, ADMIN_DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, PageSizeOption
 //   UserRole, userRoleSchema, UserRoleType
 
 export { type ApiErrorBody, apiErrorSchema } from './cross-cutting/api-error';
-export { type PaginationResponse, paginationResponseSchema } from './cross-cutting/pagination';
+export {
+  ADMIN_DEFAULT_PAGE_SIZE,
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZE_OPTIONS,
+  type PageSizeOption,
+  type PaginationResponse,
+  paginationResponseSchema,
+} from './cross-cutting/pagination';
 
 export { UserRole, type UserRole as UserRoleType, userRoleSchema } from './features/user';

@@ -25,9 +25,9 @@
 
 import type { UserRole } from '@app/shared-types';
 import type { UserJSON } from '@clerk/backend';
-import { invalidateClerkUserCached } from '@/cache/clerk-user';
-import { invalidateUserSessionCached } from '@/cache/user-session';
 import type { UserRepository } from '@/features/users/repository';
+import { invalidateClerkUserCached } from '@/lib/cache/clerk-user';
+import { invalidateUserSessionCached } from '@/lib/cache/user-session';
 import { logger } from '@/logger';
 
 export type WebhookOutcome = 'updated' | 'deleted' | 'noop';

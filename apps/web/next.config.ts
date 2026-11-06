@@ -142,11 +142,11 @@ export default withSentryConfig(config, {
   silent: process.env.NODE_ENV !== 'production',
   // `@sentry/nextjs` v9 dropped `hideSourceMaps` and replaced it with
   // the `sourcemaps` config object. `disable` is a hard kill switch
-  // for both generation AND upload — leaving it `false` (or omitting
-  // it) makes the plugin emit `.map` files during compilation and
-  // upload them to GlitchTip, where the server resolves minified
-  // stack frames. The standalone bundle stays map-free.
-  sourcemaps: { disable: false },
+  // for both generation AND upload. Disabled by default — no map
+  // generation, no upload, no `SENTRY_AUTH_TOKEN` needed at build
+  // time. Set to `false` to re-enable (also requires restoring the
+  // CI upload step and `SENTRY_AUTH_TOKEN` secret — see SECRETS.md).
+  sourcemaps: { disable: true },
   // `tunnelRoute` only affects the *browser SDK's* event submission
   // path (ad-blocker bypass via our own origin). Build-time source
   // map uploads are server-to-server and ignore this flag entirely.

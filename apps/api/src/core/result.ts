@@ -1,5 +1,5 @@
-// Result<T> + AppError. Borrowed from the shared-core idea in montana:
-// services return Result<T> instead of throwing, endpoints map to HTTP.
+// Result<T> + AppError. Services return Result<T> instead of throwing,
+// endpoints map to HTTP.
 //
 // Why: throwing in services makes the failure path invisible to readers
 // and forces every caller to remember a try/catch. A typed sum type makes

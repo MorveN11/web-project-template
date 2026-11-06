@@ -3,8 +3,8 @@
 // warnings always go through.
 
 import { database, type Prisma } from '@app/db';
-import { env } from '../env';
-import { logger } from '../logger';
+import { env } from '../../env';
+import { logger } from '../../logger';
 
 export function attachPrismaLogging() {
   database.$on('query', (event: Prisma.QueryEvent) => {

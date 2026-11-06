@@ -28,9 +28,9 @@
 import { UserRole, type UserRole as UserRoleType } from '@app/shared-types';
 import { type User, verifyToken } from '@clerk/backend';
 import type { Context, MiddlewareHandler } from 'hono';
+import { env } from '../../env';
+import { logger, withRequest } from '../../logger';
 import { getClerkUserCached } from '../cache/clerk-user';
-import { env } from '../env';
-import { logger, withRequest } from '../logger';
 
 export interface ClerkAuthContext {
   clerkUserId: string;

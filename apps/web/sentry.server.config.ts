@@ -15,6 +15,7 @@
 import * as Sentry from '@sentry/nextjs';
 import { env as clientEnv } from '@/lib/env/client';
 import { env as serverEnv } from '@/lib/env/server';
+import { scrubEvent } from '@/lib/sentry-scrub';
 
 if (clientEnv.NEXT_PUBLIC_SENTRY_DSN) {
   try {
@@ -25,16 +26,14 @@ if (clientEnv.NEXT_PUBLIC_SENTRY_DSN) {
       // ponytail: GlitchTip doesn't support Sentry session envelopes. v10
       // sessions are opt-in via integrations; default is off.
       release: clientEnv.NEXT_PUBLIC_SENTRY_RELEASE,
+      sendDefaultPii: false,
+      beforeSend: scrubEvent,
     });
     const dsnHost = new URL(clientEnv.NEXT_PUBLIC_SENTRY_DSN).host;
     console.info('[sentry] initialised (server)', {
       dsn_host: dsnHost,
       environment: clientEnv.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? serverEnv.NODE_ENV,
       release: clientEnv.NEXT_PUBLIC_SENTRY_RELEASE,
-    });
-    Sentry.captureMessage('sentry-boot-probe (server)', {
-      level: 'info',
-      tags: { probe: 'boot' },
     });
   } catch (err) {
     console.error('[sentry] init failed (server)', err);

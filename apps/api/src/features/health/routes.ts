@@ -5,8 +5,8 @@
 
 import { database } from '@app/db';
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
+import { publicSecurity } from '@/lib/openapi/security';
 import { logger } from '@/logger';
-import { publicSecurity } from '@/openapi/security';
 
 const healthResponseSchema = z
   .object({

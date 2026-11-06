@@ -16,6 +16,23 @@
 
 import { z } from '@hono/zod-openapi';
 
+/// Default page size used by every paginated endpoint + the pageSize
+/// selector on the web side. Single source of truth so api + web
+/// agree on what "the default" looks like.
+export const DEFAULT_PAGE_SIZE = 10;
+
+/// Admin routes use a tighter default (5 rows) so the page sits
+/// inside the viewport without scrolling on common resolutions. The
+/// admin pageSize selector still lets the user pick larger sizes
+/// from `PAGE_SIZE_OPTIONS`.
+export const ADMIN_DEFAULT_PAGE_SIZE = 5;
+
+/// Options offered by the pageSize selector. The first entry is the
+/// default. Add new sizes here when the catalog or admin asks for
+/// more granularity.
+export const PAGE_SIZE_OPTIONS = [5, 10, 15, 30, 50] as const;
+export type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
+
 export function paginationResponseSchema<T extends z.ZodTypeAny>(item: T, name: string) {
   return z
     .object({

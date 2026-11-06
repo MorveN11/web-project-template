@@ -14,6 +14,7 @@
 
 import * as Sentry from '@sentry/nextjs';
 import { env as clientEnv } from '@/lib/env/client';
+import { scrubEvent } from '@/lib/sentry-scrub';
 
 // Single gate — only init Sentry when the DSN is present. Deployed
 // envs inject the DSN via Dokploy build args; dev never sets it, so
@@ -25,16 +26,14 @@ if (clientEnv.NEXT_PUBLIC_SENTRY_DSN) {
       environment: clientEnv.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
       tracesSampleRate: clientEnv.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,
       release: clientEnv.NEXT_PUBLIC_SENTRY_RELEASE,
+      sendDefaultPii: false,
+      beforeSend: scrubEvent,
     });
     const dsnHost = new URL(clientEnv.NEXT_PUBLIC_SENTRY_DSN).host;
     console.info('[sentry] initialised (edge)', {
       dsn_host: dsnHost,
       environment: clientEnv.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
       release: clientEnv.NEXT_PUBLIC_SENTRY_RELEASE,
-    });
-    Sentry.captureMessage('sentry-boot-probe (edge)', {
-      level: 'info',
-      tags: { probe: 'boot' },
     });
   } catch (err) {
     console.error('[sentry] init failed (edge)', err);

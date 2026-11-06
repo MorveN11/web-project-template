@@ -19,8 +19,8 @@ import { createClerkClient } from '@clerk/backend';
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import { env } from '@/env';
 import { UserRepository } from '@/features/users/repository';
+import { publicSecurity } from '@/lib/openapi/security';
 import { logger } from '@/logger';
-import { publicSecurity } from '@/openapi/security';
 
 const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
 

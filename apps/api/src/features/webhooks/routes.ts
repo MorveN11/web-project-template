@@ -24,9 +24,9 @@
 
 import { database } from '@app/db';
 import { verifyWebhook, type WebhookEvent } from '@clerk/backend/webhooks';
-import { invalidateClerkUserCached } from '@/cache/clerk-user';
-import { invalidateUserSessionCached } from '@/cache/user-session';
 import { UserRepository } from '@/features/users/repository';
+import { invalidateClerkUserCached } from '@/lib/cache/clerk-user';
+import { invalidateUserSessionCached } from '@/lib/cache/user-session';
 import { logger } from '@/logger';
 import { UserWebhookService } from './service';
 
