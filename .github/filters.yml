@@ -1,3 +1,4 @@
+# Pipeline smoke test (temporary).
 # Path-based matrix used by release.yml + ci.yml's `changes` job to know
 # which services changed. Only `api` and `web` are consumed by workflows;
 # the other keys are kept for documentation and future ad-hoc scripts.
